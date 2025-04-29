@@ -1,0 +1,29 @@
+function(add_library_source)
+    get_property(lib_files GLOBAL PROPERTY PROJECT_LIBRARY_SRCS)
+    list(APPEND lib_files ${CMAKE_CURRENT_SOURCE_DIR}/${ARGN})
+    set(PROJECT_LIBRARY_SRCS ${lib_files})
+    set_property(GLOBAL PROPERTY PROJECT_LIBRARY_SRCS ${lib_files})
+endfunction()
+
+function(add_library_header)
+    get_property(lib_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
+    list(APPEND lib_files ${CMAKE_CURRENT_SOURCE_DIR}/${ARGN})
+    set(PROJECT_LIBRARY_HEADERS ${lib_files})
+    set_property(GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS ${lib_files})
+endfunction()
+
+function(spawn_test_target target_name file)
+    get_filename_component(name ${file} NAME)
+    string(REPLACE ".cpp" "" name ${name})
+    add_executable(${name} ${file})
+    target_include_directories(${name}
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
+    target_link_libraries(${name}
+        PRIVATE
+        SysY2022
+    )
+    set(${target_name} ${name})
+    set(${target_name} ${${target_name}} PARENT_SCOPE)
+endfunction()
