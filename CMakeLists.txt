@@ -34,7 +34,23 @@ get_property(lib_header_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
 
 add_library(${PROJECT_NAME} SHARED ${lib_source_files})
 
+# Boost
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
 
+find_package(Boost REQUIRED COMPONENTS filesystem)
+target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem)
+include_directories(${Boost_INCLUDE_DIRS})
+
+if(Boost_FOUND)
+    message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
+    message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
+else()
+    message(FATAL_ERROR "Boost not found")
+endif()
+
+# Target
 target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
