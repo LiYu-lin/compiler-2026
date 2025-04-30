@@ -16,13 +16,13 @@ function(spawn_test_target target_name file)
     get_filename_component(name ${file} NAME)
     string(REPLACE ".cpp" "" name ${name})
     add_executable(${name} ${file})
-    target_include_directories(${name}
-        PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    )
     target_link_libraries(${name}
-        PRIVATE
+        PUBLIC
         SysY2022
+    )
+    target_include_directories(${name}
+        PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
     )
     set(${target_name} ${name})
     set(${target_name} ${${target_name}} PARENT_SCOPE)

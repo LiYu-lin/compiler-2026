@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.12.0)
 project(SysY2022 VERSION 0.1.0 LANGUAGES C CXX)
 
 
@@ -41,7 +41,6 @@ endif()
 
 find_package(Boost REQUIRED COMPONENTS filesystem)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem)
-include_directories(${Boost_INCLUDE_DIRS})
 
 if(Boost_FOUND)
     message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
@@ -51,10 +50,7 @@ else()
 endif()
 
 # Target
-target_include_directories(${PROJECT_NAME} PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-    PRIVATE src)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${Boost_INCLUDE_DIRS})
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
