@@ -32,7 +32,7 @@ add_subdirectory(include)
 get_property(lib_source_files GLOBAL PROPERTY PROJECT_LIBRARY_SRCS)
 get_property(lib_header_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
 
-add_library(${PROJECT_NAME} SHARED ${lib_source_files})
+add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 
 # Boost
 if(POLICY CMP0167)
