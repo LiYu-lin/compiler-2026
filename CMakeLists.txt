@@ -36,7 +36,9 @@ add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 
 # Lexy
 include(FetchContent)
-FetchContent_Declare(lexy URL https://lexy.foonathan.net/download/lexy-src.zip)
+FetchContent_Declare(lexy
+    URL https://lexy.foonathan.net/download/lexy-src.zip
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
 FetchContent_MakeAvailable(lexy)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE foonathan::lexy)
