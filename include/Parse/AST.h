@@ -8,3 +8,7 @@
  * @copyright Copyright (c) 2025
  *
  */
+
+namespace frontend {
+namespace ast {}
+} // namespace frontend

@@ -15,8 +15,7 @@ Please make sure the following configurations are included in `.vscode/settings.
 ```json
 
 {
-    "C_Cpp.formatting": "clangFormat",
-    "editor.defaultFormatter": "xaver.clang-format",
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
     "editor.indentSize": "tabSize",
     "editor.tabSize": 4,
     "C_Cpp.intelliSenseEngine": "disabled"
