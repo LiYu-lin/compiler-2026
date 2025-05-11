@@ -34,23 +34,15 @@ get_property(lib_header_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
 
 add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 
-# Boost
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
+# Lexy
+include(FetchContent)
+FetchContent_Declare(lexy URL https://lexy.foonathan.net/download/lexy-src.zip)
+FetchContent_MakeAvailable(lexy)
 
-find_package(Boost REQUIRED COMPONENTS filesystem)
-target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem)
-
-if(Boost_FOUND)
-    message(STATUS "Boost_INCLUDE_DIRS: ${Boost_INCLUDE_DIRS}")
-    message(STATUS "Boost_LIBRARIES: ${Boost_LIBRARIES}")
-else()
-    message(FATAL_ERROR "Boost not found")
-endif()
+target_link_libraries(${PROJECT_NAME} PRIVATE foonathan::lexy)
 
 # Target
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${Boost_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
