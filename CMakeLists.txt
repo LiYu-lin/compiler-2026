@@ -34,15 +34,6 @@ get_property(lib_header_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
 
 add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 
-# Lexy
-include(FetchContent)
-FetchContent_Declare(lexy
-    URL https://lexy.foonathan.net/download/lexy-src.zip
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-FetchContent_MakeAvailable(lexy)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE foonathan::lexy)
-
 # Target
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
