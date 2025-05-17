@@ -86,7 +86,7 @@ TokenPtr Lexer::nextIdentifier() {
     }
     unget();
     if (ident.empty()) {
-        throwError("Empty identifier");
+        throw newError("Empty identifier");
     }
     return box<token::Ident>(ident, startLine, startColumn, start);
 }
@@ -99,7 +99,7 @@ std::string Lexer::nextDecimalStr() {
     }
     unget();
     if (num.empty()) {
-        throwError("Unexpected decimal number");
+        throw newError("Unexpected decimal number");
     }
     return num;
 }
@@ -115,7 +115,7 @@ TokenPtr Lexer::nextHexadecimal() {
     }
     unget();
     if (num.empty()) {
-        throwError("Unexpected hexadecimal number");
+        throw newError("Unexpected hexadecimal number");
     }
     return box<token::IntConst>(std::stoi(num, nullptr, 16), startLine,
                                 startColumn, start);
@@ -284,14 +284,14 @@ std::unique_ptr<Token> Lexer::nextToken() {
             }
             return box<token::Operator>(">", line, column, tokPos);
         } else {
-            throwError("Unexpected character: " + std::string(1, c));
+            throw newError("Unexpected character: " + std::string(1, c));
         }
     }
     return nullptr; // EOF
 }
 
-void Lexer::throwError(const std::string &message) const {
-    throw Error(message, line, column, tokPos);
+Lexer::Error Lexer::newError(const std::string &message) const {
+    return Error(message, line, column, tokPos);
 }
 
 } // namespace frontend

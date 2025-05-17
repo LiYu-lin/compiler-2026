@@ -133,7 +133,7 @@ public:
     Lexer() = delete;
     Lexer(std::istream &input) : input(input) {}
     std::unique_ptr<Token> nextToken();
-    void throwError(const std::string &message) const;
+    Error newError(const std::string &message) const;
 };
 
 } // namespace frontend

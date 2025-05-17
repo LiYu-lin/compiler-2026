@@ -17,11 +17,13 @@ int main() {
 int main() {
     std::istringstream input(code);
     frontend::Lexer lexer(input);
-    while (auto token = lexer.nextToken()) {
-        try {
+    try {
+        while (auto token = lexer.nextToken()) {
             std::cout << token->toString() << std::endl;
-        } catch (frontend::Lexer::Error &e) {
-            std::cerr << e.toString() << std::endl;
         }
+
+    } catch (const frontend::Lexer::Error &e) {
+        std::cerr << e.toString() << std::endl;
     }
+    return 0;
 }
