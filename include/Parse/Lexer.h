@@ -39,6 +39,8 @@ public:
     Token(Type type) : type(type) {}
     Token(Type type, size_t line, size_t column, size_t tokPos)
         : type(type), line(line), column(column), tokPos(tokPos) {}
+
+    inline bool is(Type t) const { return type == t; }
     virtual std::string toString() const = 0;
     virtual ~Token() = default;
 };
