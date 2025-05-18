@@ -11,13 +11,18 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <istream>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
-#define box std::make_unique
+#define box std::make_shared
+
+#define uni std::make_unique
 
 namespace frontend {
 
@@ -25,7 +30,6 @@ class Token {
 public:
     enum class Type {
         Identifier,
-        Keyword,
         FloatConst,
         IntConst,
         Operator,
@@ -35,6 +39,7 @@ public:
     size_t line;
     size_t column;
     size_t tokPos;
+    static std::set<std::string> reserved;
     Token() = default;
     Token(Type type) : type(type) {}
     Token(Type type, size_t line, size_t column, size_t tokPos)
@@ -45,7 +50,9 @@ public:
     virtual ~Token() = default;
 };
 
-using TokenPtr = std::unique_ptr<Token>;
+using TokenPtr = std::shared_ptr<Token>;
+using TokenPtrs = std::vector<TokenPtr>;
+using TokenPtrIterator = TokenPtrs::iterator;
 
 namespace token {
 class Ident : public Token {
@@ -132,9 +139,9 @@ private:
     void skipMultilineComment();
 
 public:
-    Lexer() = delete;
+    Lexer();
     Lexer(std::istream &input) : input(input) {}
-    std::unique_ptr<Token> nextToken();
+    std::shared_ptr<Token> nextToken();
     Error newError(const std::string &message) const;
 };
 

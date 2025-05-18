@@ -10,8 +10,14 @@
  */
 
 #include "Parse/Lexer.h"
+#include <memory>
 
 namespace frontend {
+
+std::set<std::string> Token::reserved = {
+    "if",       "else",  "while", "return", "break",
+    "continue", "const", "int",   "float",  "void",
+};
 
 namespace token {
 
@@ -140,7 +146,6 @@ TokenPtr Lexer::nextOctal() {
 
 TokenPtr Lexer::nextNumber() {
     char c = get();
-    char p;
     auto frac = [&] {
         size_t start = tokPos;
         size_t startLine = line;
@@ -198,7 +203,7 @@ void Lexer::skipMultilineComment() {
     }
 }
 
-std::unique_ptr<Token> Lexer::nextToken() {
+std::shared_ptr<Token> Lexer::nextToken() {
     char c;
     while ((c = get()) != EOF) {
         if (isspace(c) || c == '\r' || c == '\t' || c == '\n') {
