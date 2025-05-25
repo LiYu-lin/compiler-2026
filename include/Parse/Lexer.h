@@ -15,14 +15,13 @@
 #include <cstddef>
 #include <istream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #define box std::make_shared
-
-#define uni std::make_unique
 
 namespace frontend {
 
@@ -50,6 +49,7 @@ public:
     virtual ~Token() = default;
 };
 
+using OptTokenPtr = std::optional<std::shared_ptr<Token>>;
 using TokenPtr = std::shared_ptr<Token>;
 using TokenPtrs = std::vector<TokenPtr>;
 using TokenPtrIterator = TokenPtrs::iterator;
