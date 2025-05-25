@@ -13,7 +13,6 @@
 
 #include "Parse/AST.h"
 #include "Parse/Lexer.h"
-#include <array>
 #include <functional>
 #include <initializer_list>
 #include <memory>
