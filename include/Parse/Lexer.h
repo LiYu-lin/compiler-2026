@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <istream>
 #include <memory>
