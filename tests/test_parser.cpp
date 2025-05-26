@@ -6,6 +6,7 @@
 using namespace frontend::parser;
 
 std::string code = R"(
+const int MAX = 100;
 int main() {
     int a = 5;
     if (a >= 10 && a < 20) {
@@ -14,7 +15,7 @@ int main() {
         a = a - 1;
     };
     return 0;
-};
+}
 )";
 
 int main() {
@@ -30,7 +31,8 @@ int main() {
         return tokens;
     }();
     try {
-        auto ast = parser.run(tokens.begin());
+        auto ast = parser.run(
+            frontend::TokenPtrIterator(tokens.begin(), tokens.end()));
         std::cout << "Parsed successfully: " << ast->toString(0) << std::endl;
     } catch (const frontend::ParserError &e) {
         std::cerr << "Error: " << e.toString() << std::endl;

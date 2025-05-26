@@ -17,11 +17,17 @@ namespace frontend {
 namespace parser {
 
 Parser<ast::ASTNodePtr> comp_unit() {
-    return func_def().or_(decl()).many1().map<ast::ASTNodePtr>(
-        [](auto decls) { return box<ast::CompUnit>(decls); });
+    return (func_def().or_(decl().with(symbol(";"))))
+        .many1()
+        .map<ast::ASTNodePtr>(
+            [](auto decls) { return box<ast::CompUnit>(decls); });
 }
 
-Parser<ast::ASTNodePtr> decl() { return const_decl().or_(var_decl()); }
+Parser<ast::ASTNodePtr> decl() {
+    return const_decl().or_(var_decl()).map<ast::ASTNodePtr>([](auto t) {
+        return box<ast::Decl>(t);
+    });
+}
 
 Parser<ast::ASTNodePtr> const_decl() {
     return str.is("const")

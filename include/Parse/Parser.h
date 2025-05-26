@@ -58,9 +58,8 @@ struct ParserError {
 
     std::string toString() const {
         return "ParserError: " + message + " at " +
-               std::to_string(state->get()->line) + ":" +
-               std::to_string(state->get()->column) + " - " +
-               state->get()->toString();
+               std::to_string(state->line) + ":" +
+               std::to_string(state->column) + " - " + state->toString();
     }
 
     static ParserError endOfFile(TokenPtrIterator state) {
@@ -344,6 +343,9 @@ public:
                 TokenPtrIterator current = first_pure.state;
 
                 while (true) {
+                    if (*current == nullptr) {
+                        break; // End of input
+                    }
                     auto result = this->stateFunc(current);
                     if (std::holds_alternative<ParserError>(result)) {
                         break;
