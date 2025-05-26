@@ -14,14 +14,13 @@
 #include <cstddef>
 #include <istream>
 #include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
 #include <vector>
 
 #define box std::make_shared
-
-#define uni std::make_unique
 
 namespace frontend {
 
@@ -49,9 +48,38 @@ public:
     virtual ~Token() = default;
 };
 
+using OptTokenPtr = std::optional<std::shared_ptr<Token>>;
 using TokenPtr = std::shared_ptr<Token>;
 using TokenPtrs = std::vector<TokenPtr>;
-using TokenPtrIterator = TokenPtrs::iterator;
+
+struct TokenPtrIterator {
+    TokenPtrs::iterator it;
+    TokenPtrs::iterator end;
+
+    TokenPtrIterator(TokenPtrs::iterator it, TokenPtrs::iterator end)
+        : it(it), end(end) {}
+
+    TokenPtr get() const { return (it != end) ? *it : nullptr; }
+
+    TokenPtr operator*() const { return get(); }
+
+    TokenPtr operator->() const { return it != end ? *it : nullptr; }
+
+    TokenPtrIterator &operator++() {
+        ++it;
+        return *this;
+    }
+
+    TokenPtrIterator operator+(size_t n) const {
+        TokenPtrIterator newIt = *this;
+        newIt.it += n;
+        return newIt;
+    }
+
+    bool operator!=(const TokenPtrIterator &other) const {
+        return it != other.it;
+    }
+};
 
 namespace token {
 class Ident : public Token {
