@@ -56,7 +56,7 @@ Parser<ast::ASTNodePtr> const_def() {
 Parser<ast::ASTNodePtr> const_init_val() {
     return symbol("{")
         .then(Parser<std::vector<ast::ASTNodePtr>>::lazy(
-            []() { return const_init_val().sep1(symbol(",")); }))
+            []() { return const_init_val().sep(symbol(",")); }))
         .with(symbol("}"))
         .map<ast::ASTNodePtr>([](auto t) { return box<ast::ConstInitVal>(t); })
         .or_(const_exp().map<ast::ASTNodePtr>(
@@ -91,7 +91,7 @@ Parser<ast::ASTNodePtr> var_def() {
 Parser<ast::ASTNodePtr> init_val() {
     return symbol("{")
         .then(Parser<std::vector<ast::ASTNodePtr>>::lazy(
-            []() { return init_val().sep1(symbol(",")); }))
+            []() { return init_val().sep(symbol(",")); }))
         .with(symbol("}"))
         .map<ast::ASTNodePtr>([](auto t) { return box<ast::InitVal>(t); })
         .or_(Parser<ast::ASTNodePtr>::lazy([]() {
