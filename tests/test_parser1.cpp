@@ -7,7 +7,10 @@ using namespace frontend::parser;
 std::string code = R"(
 const int b=10;
 int main() {
-    int a = {};
+    int a = 2;
+    if(a>1){
+        int c = 3;
+    }
     return 0;
 }
 )";

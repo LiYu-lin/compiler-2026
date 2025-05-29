@@ -1,10 +1,19 @@
-// SymbolTable.h
+/**
+ * @file SymbolTable.h
+ * @author CoffeeRain
+ * @brief Header file for the SymbolTable class.
+ * @version 0.1
+ * @date 2025-05-29
+ *
+ * @copyright Copyright (c) 2025
+ *
+ */
 #pragma once
 #include <ostream>
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include<iostream>
+#include <iostream>
 namespace frontend {
 
 enum class BType { Int, Float };
@@ -12,12 +21,12 @@ enum class FuncType { Void, Int, Float };
 
 struct SymbolInfo {
     std::string name;
-    bool isConst;          // 是否为常量
-    bool isFunction;       // 是否为函数
-    BType baseType;        // 基本类型（仅变量/常量）
-    FuncType funcType;     // 函数返回类型（仅函数）
-    std::vector<int> dims; // 数组维度（如 [2][3]）
-    int scopeLevel;        // 作用域层级
+    bool isConst;          
+    bool isFunction;       
+    BType baseType;        
+    FuncType funcType;     
+    std::vector<int> dims; 
+    int scopeLevel;        
 
     SymbolInfo() = default;
     
@@ -34,11 +43,11 @@ struct SymbolInfo {
 
 class SymbolTable {
     std::vector<std::unordered_map<std::string, SymbolInfo>> scopes;
-    int currentScopeLevel = 0;
+    int currentScopeLevel = -1;
 
 public:
 
-    SymbolTable() { enterScope(); } // 全局作用域
+    SymbolTable() { enterScope(); } 
 
     int getCurrentScopeLevel() const { return currentScopeLevel; }
 
@@ -48,36 +57,17 @@ public:
     }
 
     void exitScope() {
-        if (currentScopeLevel > 0) {
+        if (currentScopeLevel > -1) {
             scopes.pop_back();
             currentScopeLevel--;
         }
     }
 
     bool insert(const std::string& name, const SymbolInfo& info) {
-        std::cout<<"insert:"<<name<<std::endl;
-        auto& current = scopes.back();
-        if (current.count(name)) return false;
-        current[name] = info;
-        return true;
-    }
-
-    const SymbolInfo* lookup(const std::string& name) const {
-        for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
-            if (auto found = it->find(name); found != it->end()) {
-                return &found->second;
-            }
-        }
-        return nullptr;
-    }
-void dump()
-{
-    for (size_t i = 0; i < scopes.size(); ++i)
-    {
-        std::cout << "Scope level " << (i + 1) << ":\n";
-        for (const auto& [name, info] : scopes[i])
+        int param = 1;
+        if(param)
         {
-            std::cout << "  name: " << info.name << ", ";
+            std::cout<<"Name:"<<name<<", ";
             if (info.isFunction)
             {
                 std::cout << "type: function, returnType: ";
@@ -107,8 +97,20 @@ void dump()
             }
             std::cout << ", scopeLevel: " << info.scopeLevel << "\n";
         }
+        auto& current = scopes.back();
+        if (current.count(name)) return false;
+        current[name] = info;
+        return true;
     }
-}
+
+    const SymbolInfo* lookup(const std::string& name) const {
+        for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+            if (auto found = it->find(name); found != it->end()) {
+                return &found->second;
+            }
+        }
+        return nullptr;
+    }
 };
 
-} // namespace frontend
+} 

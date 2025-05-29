@@ -6,13 +6,22 @@
 using namespace frontend::parser;
 
 std::string code = R"(
-int main(int c) {
-    int a = 5;
-    if (a >= 10 && a < 20) {
-        a = a + 1;
-    } else {
-        a = a - 1;
-    };
+const int b=10;
+int main() {
+    int a = 2;
+    if(a>1){
+        int c = 3;
+    }
+    else {
+        int d = 4;
+        while (d < 10) {
+            d = d + 1;
+            if(d==9){
+                int e = 5;
+            }
+        }
+
+    }
     return 0;
 }
 )";
@@ -38,7 +47,6 @@ void testSymbolTable() {
     frontend::SymbolTable table;
     frontend::SymbolBuilder builder(table);
     builder.build(ast);
-    table.dump();
     std::cout << "AST constructed and symbol table built successfully.\n";
   } catch (const frontend::ParserError &e) {
     std::cerr << "Error: " << e.toString() << std::endl;
