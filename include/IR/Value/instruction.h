@@ -443,7 +443,6 @@ namespace IR
         struct PhiInstruction : public Instruction
     {
         std::set<PVB> incomingValue;
-        void waste();
         PhiInstruction(pType type, std::vector<PVB> value, std::string name = "");
 
         std::vector<PVB> getDifferentPVB();

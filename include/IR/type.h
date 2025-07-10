@@ -122,6 +122,19 @@ struct FunctionType : Type {
     explicit FunctionType(pType ret, std::vector<pType> &&params)
         : Type(FUNCTION), ret(ret), params(std::move(params)) {}
 };
+static bool checkType(pType a, pType b) {
+    if (a->isInt32Ty() && b->isInt32Ty())
+        return true;
+    if (a->isFloatTy() && b->isFloatTy())
+        return true;
+    if (a->isVoidTy() && b->isVoidTy())
+        return true;
+    if (a->isPointerTy() && b->isPointerTy())
+        return checkType(a->getBase(), b->getBase());
+    if (a->isArrayTy() && b->isArrayTy())
+        return checkType(a->getBase(), b->getBase());
+    return false;
+}
 }  
 
 #endif  
