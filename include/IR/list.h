@@ -24,34 +24,40 @@ namespace IR {
             }
             tail = nullptr;
         }
+        bool isEmpty() const {
+            return head->getNext() == tail;
+        }
         ListNode* getHead() const {
             return head->getNext();
         }
         ListNode* getTail() const {
             return tail->getPrev();
         }
-        void insertAfter(ListNode* newNode, T* node) {
+        void insertAfter(ListNode* newNode, T node) {
             if (node == nullptr || newNode == nullptr || node->id == 0) return;
             node->insertAfter(newNode);
             sz++;
         }
-        void insertBefore(ListNode* newNode, T* node) {
+        void insertBefore(ListNode* newNode, T node) {
             if (node == nullptr || newNode == nullptr || node->id == 0) return;
             node->insertBefore(newNode);
             sz++;
         }
-        void PushBack(T* node) {
+        void PushBack(T node) {
             if (node == nullptr || node->id == 0) return;
-            insertBefore(tail);
+            insertBefore(tail, node);
         }
-        void PushFront(T* node) {
+        void PushFront(T node) {
             if (node == nullptr || node->id == 0) return;
-            insertAfter(head);
+            insertAfter(head, node);
         }
-        void remove(T* node) {
+        void remove(T node) {
             if (node == nullptr || node->id == 0) return;
             node->remove();
             sz--;
+        }
+        int getSize() const {
+            return sz;
         }
     private:
         ListNode* head;

@@ -1,0 +1,10 @@
+add_library_source(
+    type.cpp
+    value.cpp
+    module.cpp
+    IRBuilder.cpp
+    basicblock.cpp
+    constantfolder.cpp
+    use.cpp
+)
+add_subdirectory(Value)

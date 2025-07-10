@@ -14,7 +14,6 @@ namespace IR
         Use(Value *val, User *user) : ListNode(1), val(val), user(user) {}
         
         static Use *create(Value *val, User *user);
-
         void setValue(Value *val);
     };
 

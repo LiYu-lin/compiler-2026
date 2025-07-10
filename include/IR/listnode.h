@@ -52,7 +52,7 @@ namespace IR {
             prev = node;
             node->next = this;
         }
-        virtual void removeNode() {
+        virtual void remove() {
             if (prev != nullptr) {
                 prev->next = next;
             }

@@ -55,9 +55,9 @@ struct Type {
 
     [[nodiscard]] bool isVoidTy() const { return type == VOID; }
     [[nodiscard]] bool isLabelTy() const { return type == LABEL; }
-    [[nodiscard]] bool isIntegerTy() const { return type == INTEGER; }
+    [[nodiscard]] bool isInt32Ty() const { return type == INTEGER; }
     [[nodiscard]] bool isFloatTy() const { return type == FLOAT; }
-    [[nodiscard]] bool isNumberTy() const { return isIntegerTy() || isFloatTy(); }
+    [[nodiscard]] bool isNumberTy() const { return isInt32Ty() || isFloatTy(); }
     [[nodiscard]] bool isPointerTy() const { return type == POINTER; }
     [[nodiscard]] bool isArrayTy() const { return type == ARRAY; }
     [[nodiscard]] bool isFunctionTy() const { return type == FUNCTION; }
@@ -75,7 +75,8 @@ struct Type {
     [[nodiscard]] bool convertableTo(pType other) const;
     [[nodiscard]] size_t size() const;
     [[nodiscard]] std::string to_string() const;
-
+    static FunctionType* getFunctionType(Type* ret, const std::vector<Type*>& params);
+    static FunctionType* getFunctionType(Type* ret, std::vector<Type*>&& params);
     friend std::ostream &operator<<(std::ostream &o, const Type &t) { return o << t.to_string(); }
     friend std::ostream &operator<<(std::ostream &o, pType t) { return o << t->to_string(); }
 

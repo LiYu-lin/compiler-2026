@@ -10,3 +10,6 @@ add_test(NAME ${test_parser2} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_parser2
 
 spawn_test_target(test_symboltable1 ${CMAKE_CURRENT_SOURCE_DIR}/test_symboltable1.cpp)
 add_test(NAME ${test_symboltable1} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_symboltable1})
+
+spawn_test_target(test_IR ${CMAKE_CURRENT_SOURCE_DIR}/test_IR.cpp)
+add_test(NAME ${test_IR} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_IR})

@@ -1,11 +1,11 @@
 #pragma once
-#include "mir/type.h"
-#include "mir/Value/Constant.h"
+#include "ir/type.h"
+#include "ir/Value/Constant.h"
 #include "user.h"
-#include "mir/listnode.h"
-#include "mir/list.h"
+#include "ir/listnode.h"
+#include "ir/list.h"
 #include "globalvalue.h"
-#include "mir/basicblock.h"
+#include "ir/basicblock.h"
 
 #define HANDLE_BINARY_CREATE(op)                                                \
     static BinaryInstruction *create##op(pType ty, Value *lhs, Value *rhs) \
@@ -48,7 +48,7 @@ namespace IR
         Instruction(pType type, const unsigned int opCode) : User(type, Value::InstructionVal + opCode), ListNode(1) {}
 
         BasicBlock *getParentBB() const { return parent; }
-
+        
         bool isUseless();
 
         Value *getOperand(unsigned int i) const override { return operands[i]; }
@@ -166,7 +166,7 @@ namespace IR
 
     private:
         friend struct List<Instruction *>;
-        void removeNode() override;
+        void remove() override;
     };
 
         struct BinaryInstruction : public Instruction
@@ -398,7 +398,7 @@ namespace IR
 
         static BranchInstruction *createCondBr(Value *condition, BasicBlock *trueBlock, BasicBlock *falseBlock)
         {
-            assert(condition->getType()->isIntegerTy());
+            assert(condition->getType()->isInt32Ty());
             return new BranchInstruction(condition, trueBlock, falseBlock);
         }
 
@@ -443,12 +443,14 @@ namespace IR
         struct PhiInstruction : public Instruction
     {
         std::set<PVB> incomingValue;
-
+        void waste();
         PhiInstruction(pType type, std::vector<PVB> value, std::string name = "");
 
         std::vector<PVB> getDifferentPVB();
 
-        void emitIR(std::ostream &os) override;
+        // 确保这些虚函数有声明
+        virtual void emitIR(std::ostream& os) override;
+
 
         static PhiInstruction *create(pType type, std::vector<PVB> value, std::string name = "")
         {
@@ -616,3 +618,8 @@ namespace IR
         bool isReturnVoid() { return type->isVoidTy(); }
     };
 }
+#undef HANDLE_BINARY_CREATE
+#undef HANDLE_UNARY_CREATE
+#undef HANDLE_CAST_CREATE
+#undef HANDLE_CMP_INST
+#undef HANDLE_CMP_CREATE

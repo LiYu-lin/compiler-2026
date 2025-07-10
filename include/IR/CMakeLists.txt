@@ -1,3 +1,12 @@
 add_library_header(
-    IR_Value.h
+    type.h
+    value.h
+    module.h
+    IRBuilder.h
+    basicblock.h
+    list.h
+    listnode.h
+    use.h
 )
+add_subdirectory(Value)
+add_subdirectory(opt)

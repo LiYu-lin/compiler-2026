@@ -1,4 +1,4 @@
-#include "type.h"
+#include "ir/type.h"
 #include <cassert>
 // Type
 namespace IR {
@@ -24,7 +24,7 @@ pPointerType Type::getPointerType(pType base) { return PointerType::getPointerTy
 
 
 int Type::getIntegerBits() const {
-    assert(isIntegerTy());
+    assert(isInt32Ty());
     return static_cast<pIntegerType>(this)->bits; 
 }
 
@@ -76,7 +76,7 @@ int Type::getFunctionParamCount() const {
 
 bool Type::convertableTo(pType other) const {
     if (this == other) return true;
-    if (isIntegerTy() || isFloatTy()) return other->isIntegerTy() || other->isFloatTy();
+    if (isInt32Ty() || isFloatTy()) return other->isInt32Ty() || other->isFloatTy();
     if ((isArrayTy() || isPointerTy()) && other->isPointerTy()) return true;
     return false;
 }
@@ -87,7 +87,7 @@ std::string Type::to_string() const {
     if (isLabelTy()) return "<label>"s;
     if (isVoidTy()) return "void"s;
     if (isFloatTy()) return "float"s;
-    if (isIntegerTy()) return "i" + std::to_string(getIntegerBits());
+    if (isInt32Ty()) return "i" + std::to_string(getIntegerBits());
     if (isPointerTy()) return "ptr"s;
     if (isArrayTy())
         return "[" + std::to_string(getArraySize()) + " x " + getArrayBase()->to_string() + "]";
@@ -169,4 +169,5 @@ pFunctionType FunctionType::getFunctionType(pType ret, std::vector<pType> &&para
     }
     return cache[key];
 }
+
 }  // namespace IR

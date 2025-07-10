@@ -1,8 +1,7 @@
 #pragma once
 
 #include "value.h"
-#include "mir/type.h"
-#include "Value/instruction.h"
+#include "ir/type.h"
 #include "listnode.h"
 #include "list.h"
 #include <vector>
@@ -10,11 +9,11 @@
 
 namespace IR
 {
+    struct Instruction;
     struct Function;
     struct BasicBlock : public Value, public ListNode
     {
         bool hasNoLoopUnrollTag = false;
-
         Function *parent = nullptr;
 
         virtual ~BasicBlock() = default;

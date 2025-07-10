@@ -1,5 +1,5 @@
 #pragma once
-#include "mir/Value.h"
+#include "ir/Value.h"
 namespace IR
 {
     struct User
@@ -22,5 +22,7 @@ namespace IR
         static int totalUsers;
 
         void setTotalUsers() { number = totalUsers++; }
+    
+        void setInitializer(Constant* init);
     };
 }

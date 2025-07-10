@@ -1,7 +1,7 @@
 #pragma once
 
 #include "user.h"
-#include "mir/type.h"
+#include "ir/type.h"
 #include <cassert>
 #include <map>
 #include <stdexcept>
