@@ -6,10 +6,6 @@
 namespace IR
 {
     // 常量折叠
-
-    // czr: 这一块你们应该清楚，对于除了foldgep和foldload之外的函数，
-    //      都是对两个Value对象操作，如果能常量折叠就返回一个ConstantInt32或者ConstantFloat对象
-    //      如果不能就返回nullptr。注意类型要严格检查，不要出现int和float混用的情况。
     struct ConstantFolder
     {
         ConstantFolder() = default;
@@ -51,7 +47,7 @@ namespace IR
 
         // 访问操作
         Value *FoldGEP(Value *Base, std::vector<Value *> Indices);
-        Value *FoldLoad(Type *type, Value *Ptr);
+        Value *FoldLoad(pType type, Value *Ptr);
 
         static ConstantFolder *get()
         {

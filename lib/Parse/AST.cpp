@@ -1,9 +1,9 @@
 /**
- * @file AST2String.cpp
+ * @file AST.cpp
  * @author Dexer Matters (dexermatters@gmail.com)
  * @brief Implementation of the AST toString methods.
- * @version 0.1
- * @date 2025-05-17
+ * @version 0.3
+ * @date 2025-07-12
  *
  * @copyright Copyright (c) 2025
  *
@@ -11,9 +11,184 @@
 
 #include "Parse/AST.h"
 #include <sstream>
-
+#include "SymbolTable/Visitor.h"
 namespace frontend {
 namespace ast {
+IR::Value* ASTNode::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* CompUnit::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Decl::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* ConstDecl::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* ConstDef::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* ConstInitVal::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* VarDecl::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* VarDef::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* InitVal::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* FuncDef::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* FuncFParams::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* FuncFParam::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Block::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* BlockItem::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::AssignStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::ExpStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::BlockStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::IfStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::WhileStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::BreakStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::ContinueStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Stmt::ReturnStmt::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Exp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* Cond::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* LVal::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* PrimaryExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* UnaryExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* UnaryExp::UnaryExpCall::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* UnaryExp::UnaryExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* FuncRParams::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* MulExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* MulExp::MulExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* AddExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* AddExp::AddExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* RelExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* RelExp::RelExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* EqExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* EqExp::EqExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* LAndExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* LAndExp::LAndExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* LOrExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* LOrExp::LOrExpOp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
+
+IR::Value* ConstExp::accept(frontend::visitor::Visitor& visitor) const {
+    return visitor.visit(*this);
+}
 
 std::string CompUnit::toString(int indent) const {
     std::stringstream ss;

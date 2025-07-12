@@ -69,7 +69,7 @@ namespace IR
         return temp;
     }
 
-    Value *IRBuilder::CreateLoad(Type *ty, Value *op, const char *c)
+    Value *IRBuilder::CreateLoad(pType ty, Value *op, const char *c)
     {
         assert(op->getType()->isPointerTy());
         Value *value;

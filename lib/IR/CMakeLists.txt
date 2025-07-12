@@ -8,3 +8,4 @@ add_library_source(
     use.cpp
 )
 add_subdirectory(Value)
+add_subdirectory(GenIR)

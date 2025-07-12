@@ -96,8 +96,7 @@ namespace IR
         return nullptr;
     }
 
-    // czr: 《论屎山是如何形成的》
-    Value *ConstantFolder::FoldLoad(Type *ty, Value *ptr)
+    Value *ConstantFolder::FoldLoad(pType ty, Value *ptr)
     {
         if (ptr->isGlobalVariable())
         {

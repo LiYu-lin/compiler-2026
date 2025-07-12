@@ -14,6 +14,10 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include "ir/Value.h"
+namespace frontend::visitor {
+    class Visitor;
+}
 namespace frontend {
 namespace ast {
 
@@ -110,6 +114,7 @@ struct ASTNode {
     std::string makeIndent(int indent) const {
         return std::string(indent, ' ');
     }
+    virtual IR::Value* accept(frontend::visitor::Visitor& visitor) const = 0;
 };
 
 using ASTNodePtr = std::shared_ptr<ASTNode>;
@@ -123,6 +128,7 @@ struct CompUnit : public ASTNode {
     CompUnit(ASTNodePtrs decls)
         : ASTNode(Type::CompUnit), decls(std::move(decls)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Decl : public ASTNode {
@@ -130,6 +136,7 @@ struct Decl : public ASTNode {
     Decl() : ASTNode(Type::Decl) {}
     Decl(ASTNodePtr decl) : ASTNode(Type::Decl), decl(std::move(decl)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct ConstDecl : public ASTNode {
@@ -140,6 +147,7 @@ struct ConstDecl : public ASTNode {
         : ASTNode(Type::ConstDecl), btype(std::move(btype)),
           constDefs(std::move(constDefs)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct ConstDef : public ASTNode {
@@ -152,6 +160,7 @@ struct ConstDef : public ASTNode {
           dimensions(std::move(dimensions)),
           constInitVal(std::move(constInitVal)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct ConstInitVal : public ASTNode {
@@ -162,6 +171,7 @@ struct ConstInitVal : public ASTNode {
     ConstInitVal(ASTNodePtr constInitVal)
         : ASTNode(Type::ConstInitVal), constInitVal(std::move(constInitVal)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct VarDecl : public ASTNode {
@@ -172,6 +182,7 @@ struct VarDecl : public ASTNode {
         : ASTNode(Type::VarDecl), btype(std::move(btype)),
           varDefs(std::move(varDefs)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct VarDef : public ASTNode {
@@ -184,6 +195,7 @@ struct VarDef : public ASTNode {
         : ASTNode(Type::VarDef), ident(std::move(ident)),
           dimensions(std::move(dimensions)), initVal(std::move(initVal)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct InitVal : public ASTNode {
@@ -194,6 +206,7 @@ struct InitVal : public ASTNode {
     InitVal(ASTNodePtr initVal)
         : ASTNode(Type::InitVal), initVal(std::move(initVal)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct FuncDef : public ASTNode {
@@ -208,6 +221,7 @@ struct FuncDef : public ASTNode {
           ident(std::move(ident)), funcFParams(std::move(funcFParams)),
           block(std::move(block)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct FuncFParams : public ASTNode {
@@ -216,6 +230,7 @@ struct FuncFParams : public ASTNode {
     FuncFParams(ASTNodePtrs funcFParams)
         : ASTNode(Type::FuncFParams), funcFParams(std::move(funcFParams)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct FuncFParam : public ASTNode {
@@ -228,6 +243,7 @@ struct FuncFParam : public ASTNode {
         : ASTNode(Type::FuncFParam), btype(std::move(btype)),
           ident(std::move(ident)), dimensions(std::move(dimensions)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Block : public ASTNode {
@@ -236,6 +252,7 @@ struct Block : public ASTNode {
     Block(ASTNodePtrs blockItems)
         : ASTNode(Type::Block), blockItems(std::move(blockItems)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct BlockItem : public ASTNode {
@@ -244,6 +261,7 @@ struct BlockItem : public ASTNode {
     BlockItem(ASTNodePtr item)
         : ASTNode(Type::BlockItem), item(std::move(item)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Stmt : public ASTNode {
@@ -255,6 +273,7 @@ struct Stmt : public ASTNode {
             : ASTNode(Type::AssignStmt), lval(std::move(lval)),
               exp(std::move(exp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct ExpStmt : public ASTNode {
@@ -262,6 +281,7 @@ struct Stmt : public ASTNode {
         ExpStmt(OptASTNodePtr exp = std::nullopt)
             : ASTNode(Type::ExpStmt), exp(std::move(exp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct BlockStmt : public ASTNode {
@@ -269,6 +289,7 @@ struct Stmt : public ASTNode {
         BlockStmt(ASTNodePtr block)
             : ASTNode(Type::BlockStmt), block(std::move(block)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct IfStmt : public ASTNode {
@@ -280,6 +301,7 @@ struct Stmt : public ASTNode {
             : ASTNode(Type::IfStmt), exp(std::move(exp)),
               block(std::move(block)), elseStmt(std::move(elseStmt)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct WhileStmt : public ASTNode {
@@ -289,16 +311,19 @@ struct Stmt : public ASTNode {
             : ASTNode(Type::WhileStmt), cond(std::move(cond)),
               stmt(std::move(stmt)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct BreakStmt : public ASTNode {
         BreakStmt() : ASTNode(Type::BreakStmt) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct ContinueStmt : public ASTNode {
         ContinueStmt() : ASTNode(Type::ContinueStmt) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct ReturnStmt : public ASTNode {
@@ -306,12 +331,14 @@ struct Stmt : public ASTNode {
         ReturnStmt(OptASTNodePtr exp = std::nullopt)
             : ASTNode(Type::ReturnStmt), exp(std::move(exp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr stmt;
     Stmt() : ASTNode(Type::Stmt) {}
     Stmt(ASTNodePtr stmt) : ASTNode(Type::Stmt), stmt(std::move(stmt)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Exp : public ASTNode {
@@ -319,12 +346,14 @@ struct Exp : public ASTNode {
     Exp() : ASTNode(Type::Exp) {}
     Exp(ASTNodePtr addExp) : ASTNode(Type::Exp), addExp(std::move(addExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Cond : public ASTNode {
     ASTNodePtr lOrExp;
     Cond(ASTNodePtr lOrExp) : ASTNode(Type::Cond), lOrExp(std::move(lOrExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct LVal : public ASTNode {
@@ -335,6 +364,7 @@ struct LVal : public ASTNode {
         : ASTNode(Type::LVal), ident(std::move(ident)),
           dimensions(std::move(dimensions)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct Number {
@@ -349,6 +379,7 @@ struct Number {
             return std::to_string(std::get<float>(value));
         }
     }
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const;
 };
 
 struct PrimaryExp : public ASTNode {
@@ -358,6 +389,7 @@ struct PrimaryExp : public ASTNode {
     PrimaryExp(Number number)
         : ASTNode(Type::PrimaryExp), primaryExp(std::move(number)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct UnaryExp : public ASTNode {
@@ -368,6 +400,7 @@ struct UnaryExp : public ASTNode {
             : ASTNode(Type::UnaryExpCall), ident(std::move(ident)),
               funcRParams(std::move(funcRParams)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     struct UnaryExpOp : public ASTNode {
@@ -377,12 +410,14 @@ struct UnaryExp : public ASTNode {
             : ASTNode(Type::UnaryExpOp), unaryOp(std::move(unaryOp)),
               unaryExp(std::move(unaryExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr unaryExp;
     UnaryExp(ASTNodePtr unaryExp)
         : ASTNode(Type::UnaryExp), unaryExp(std::move(unaryExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct FuncRParams : public ASTNode {
@@ -391,6 +426,7 @@ struct FuncRParams : public ASTNode {
     FuncRParams(ASTNodePtrs exps)
         : ASTNode(Type::FuncRParams), exps(std::move(exps)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct MulExp : public ASTNode {
@@ -402,6 +438,7 @@ struct MulExp : public ASTNode {
             : ASTNode(Type::MulExpOp), mulOp(std::move(mulOp)),
               mulExp(std::move(mulExp)), unaryExp(std::move(unaryExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr mulExp; // MulExpOp or UnaryExp
@@ -409,6 +446,8 @@ struct MulExp : public ASTNode {
     MulExp(ASTNodePtr mulExp)
         : ASTNode(Type::MulExp), mulExp(std::move(mulExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
+
 };
 
 struct AddExp : public ASTNode {
@@ -420,6 +459,7 @@ struct AddExp : public ASTNode {
             : ASTNode(Type::AddExpOp), addOp(std::move(addOp)),
               addExp(std::move(addExp)), mulExp(std::move(mulExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr addExp; // AddExpOp or MulExp
@@ -427,6 +467,8 @@ struct AddExp : public ASTNode {
     AddExp(ASTNodePtr addExp)
         : ASTNode(Type::AddExp), addExp(std::move(addExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
+
 };
 
 struct RelExp : public ASTNode {
@@ -438,6 +480,7 @@ struct RelExp : public ASTNode {
             : ASTNode(Type::RelExpOp), relOp(std::move(relOp)),
               relExp(std::move(relExp)), addExp(std::move(addExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr relExp; // RelExpOp or AddExp
@@ -445,6 +488,8 @@ struct RelExp : public ASTNode {
     RelExp(ASTNodePtr relExp)
         : ASTNode(Type::RelExp), relExp(std::move(relExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
+
 };
 
 struct EqExp : public ASTNode {
@@ -456,12 +501,14 @@ struct EqExp : public ASTNode {
             : ASTNode(Type::EqExpOp), eqOp(std::move(eqOp)),
               eqExp(std::move(eqExp)), relExp(std::move(relExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr eqExp; // EqExpOp or RelExp
     EqExp() : ASTNode(Type::EqExp) {}
     EqExp(ASTNodePtr eqExp) : ASTNode(Type::EqExp), eqExp(std::move(eqExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct LAndExp : public ASTNode {
@@ -472,6 +519,7 @@ struct LAndExp : public ASTNode {
             : ASTNode(Type::LAndExpOp), lAndExp(std::move(lAndExp)),
               eqExp(std::move(eqExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr lAndExp; // LAndExpOp or EqExp
@@ -479,6 +527,7 @@ struct LAndExp : public ASTNode {
     LAndExp(ASTNodePtr lAndExp)
         : ASTNode(Type::LAndExp), lAndExp(std::move(lAndExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct LOrExp : public ASTNode {
@@ -489,6 +538,7 @@ struct LOrExp : public ASTNode {
             : ASTNode(Type::LOrExpOp), lOrExp(std::move(lOrExp)),
               lAndExp(std::move(lAndExp)) {}
         std::string toString(int indent) const override;
+        IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
     };
 
     ASTNodePtr lOrExp; // LOrExpOp or LAndExp
@@ -496,6 +546,7 @@ struct LOrExp : public ASTNode {
     LOrExp(ASTNodePtr lOrExp)
         : ASTNode(Type::LOrExp), lOrExp(std::move(lOrExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
 };
 
 struct ConstExp : public ASTNode {
@@ -503,6 +554,8 @@ struct ConstExp : public ASTNode {
     ConstExp(ASTNodePtr addExp)
         : ASTNode(Type::ConstExp), addExp(std::move(addExp)) {}
     std::string toString(int indent) const override;
+    IR::Value* accept(frontend::visitor::Visitor& visitor) const override;
+
 };
 
 } // namespace ast

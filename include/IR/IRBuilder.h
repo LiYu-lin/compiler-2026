@@ -32,7 +32,7 @@ namespace IR
         Value *CreateGEP(pType type, Value *base, std::vector<Value *> indices, const char *c = "");
 
         StoreInstruction *CreateStore(Value *lval, Value *rval, const char *c = "");
-        Value *CreateLoad(Type *ty, Value *op, const char *c = "");
+        Value *CreateLoad(pType ty, Value *op, const char *c = "");
 
         // 二元运算符
         Value *CreateAdd(Value *lhs, Value *rhs, const char *c = "");
