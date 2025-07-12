@@ -145,69 +145,55 @@ class Visitor {
     public:
 
     IR::pType getTypeFromBType(ast::ASTNode::BType btype);
-
-    IR::Value* visit(const ast::ASTNode &node);
+    ast::ASTNode::BType getBTypeFromAST(ast::ASTNode::BType btype);
     
-    IR::Value* visit(ast::CompUnit &node);
-    IR::Value* visit(ast::Decl &node);
-    IR::Value* visit(ast::ConstDecl &node);
-    IR::Value* visit(ast::ConstDef &node);
-    IR::Value* visit(ast::VarDecl &node);
-    IR::Value* visit(ast::VarDef &node);
-    IR::Value* visit(ast::InitVal &node);
-
-    IR::Value* visit(ast::FuncDef &node);
-    IR::Value* visit(ast::FuncFParam &node);
-    IR::Value* visit(ast::FuncFParams &node);
-
-    IR::Value* visit(ast::Block &node);
-    IR::Value* visit(ast::BlockItem &node);
-
-    IR::Value* visit(ast::Stmt &node);
-    IR::Value* visit(ast::Stmt::AssignStmt &node);
-    IR::Value* visit(ast::Stmt::ExpStmt &node);
-    IR::Value* visit(ast::Stmt::BlockStmt &node);
-    IR::Value* visit(ast::Stmt::IfStmt &node);
-    IR::Value* visit(ast::Stmt::WhileStmt &node);
-    IR::Value* visit(ast::Stmt::BreakStmt &node);
-    IR::Value* visit(ast::Stmt::ContinueStmt &node);
-    IR::Value* visit(ast::Stmt::ReturnStmt &node);
-
-    IR::Value* visit(ast::LVal &node);
-    IR::Value* visit(ast::Number &node);
-    IR::Value* visit(ast::Cond &node);
-
-    IR::Value* visit(ast::Exp &node);
-    IR::Value* visit(ast::PrimaryExp &node);
-    IR::Value* visit(ast::UnaryExp &node);
-    IR::Value* visit(ast::UnaryExp::UnaryExpCall &node);
-    IR::Value* visit(ast::UnaryExp::UnaryExpOp &node);
-
-    IR::Value* visit(ast::FuncRParams &node);
-    IR::Value* visit(ast::ConstInitVal& node);
-
-    IR::Value* visit(ast::MulExp &node);
-    IR::Value* visit(ast::MulExp::MulExpOp &node);
-
-    IR::Value* visit(ast::AddExp &node);
-    IR::Value* visit(ast::AddExp::AddExpOp &node);
-
-    IR::Value* visit(ast::RelExp &node);
-    IR::Value* visit(ast::RelExp::RelExpOp &node);
-
-    IR::Value* visit(ast::EqExp &node);
-    IR::Value* visit(ast::EqExp::EqExpOp &node);
-
-    IR::Value* visit(ast::LAndExp &node);
-    IR::Value* visit(ast::LAndExp::LAndExpOp &node);
-
-    IR::Value* visit(ast::LOrExp &node);
-    IR::Value* visit(ast::LOrExp::LOrExpOp &node);
-
-    IR::Value* visit(ast::ConstExp &node);
+    IR::Value* visit(const ast::ASTNode &node);
+    IR::Value* visit(const ast::CompUnit &node);
+    IR::Value* visit(const ast::Decl &node);
+    IR::Value* visit(const ast::ConstDecl &node);
+    IR::Value* visit(const ast::ConstDef &node);
+    IR::Value* visit(const ast::VarDecl &node);
+    IR::Value* visit(const ast::VarDef &node);
+    IR::Value* visit(const ast::InitVal &node);
+    IR::Value* visit(const ast::FuncDef &node);
+    IR::Value* visit(const ast::FuncFParam &node);
+    IR::Value* visit(const ast::FuncFParams &node);
+    IR::Value* visit(const ast::Block &node);
+    IR::Value* visit(const ast::BlockItem &node);
+    IR::Value* visit(const ast::Stmt &node);
+    IR::Value* visit(const ast::Stmt::AssignStmt &node);
+    IR::Value* visit(const ast::Stmt::ExpStmt &node);
+    IR::Value* visit(const ast::Stmt::BlockStmt &node);
+    IR::Value* visit(const ast::Stmt::IfStmt &node);
+    IR::Value* visit(const ast::Stmt::WhileStmt &node);
+    IR::Value* visit(const ast::Stmt::BreakStmt &node);
+    IR::Value* visit(const ast::Stmt::ContinueStmt &node);
+    IR::Value* visit(const ast::Stmt::ReturnStmt &node);
+    IR::Value* visit(const ast::LVal &node);
+    IR::Value* visit(const ast::Number &node);
+    IR::Value* visit(const ast::Cond &node);
+    IR::Value* visit(const ast::Exp &node);
+    IR::Value* visit(const ast::PrimaryExp &node);
+    IR::Value* visit(const ast::UnaryExp &node);
+    IR::Value* visit(const ast::UnaryExp::UnaryExpCall &node);
+    IR::Value* visit(const ast::UnaryExp::UnaryExpOp &node);
+    IR::Value* visit(const ast::FuncRParams &node);
+    IR::Value* visit(const ast::ConstInitVal& node);
+    IR::Value* visit(const ast::MulExp &node);
+    IR::Value* visit(const ast::MulExp::MulExpOp &node);
+    IR::Value* visit(const ast::AddExp &node);
+    IR::Value* visit(const ast::AddExp::AddExpOp &node);
+    IR::Value* visit(const ast::RelExp &node);
+    IR::Value* visit(const ast::RelExp::RelExpOp &node);
+    IR::Value* visit(const ast::EqExp &node);
+    IR::Value* visit(const ast::EqExp::EqExpOp &node);
+    IR::Value* visit(const ast::LAndExp &node);
+    IR::Value* visit(const ast::LAndExp::LAndExpOp &node);
+    IR::Value* visit(const ast::LOrExp &node);
+    IR::Value* visit(const ast::LOrExp::LOrExpOp &node);
+    IR::Value* visit(const ast::ConstExp &node);
+    
     Visitor(IR::Module &module) : module(module), builder() {}
-
-
 };
 
 } 

@@ -225,7 +225,15 @@ Value *IRBuilder::CreateFPtoSI(Value *val, const char *c)
         //     IP = BB->InsertInstruction(I, IP);
         return I;
     }
+    
+    void IRBuilder::SetInsertPoint(BasicBlock *bb) {
+        BB = bb;
+    }
+    BasicBlock *IRBuilder::GetInsertBlock() {
+        return BB;
+    }
 }
+
 
 #undef HANDLE_BINARY_CREATE
 #undef HANDLE_UNARY_CREATE

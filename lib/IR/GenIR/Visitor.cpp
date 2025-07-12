@@ -1,11 +1,11 @@
-#include "SymbolTable/Visitor.h"
+#include "GenIR/Visitor.h"
 #include "Parse/AST.h"
 #include "ir/basicblock.h"
 #include "ir/type.h"
 using BType = frontend::ast::ASTNode::BType;
 namespace frontend::visitor {
 
-BType getBTypeFromAST(ast::ASTNode::BType btype) {
+BType Visitor::getBTypeFromAST(ast::ASTNode::BType btype) {
     switch (btype) {
         case ast::ASTNode::BType::Int: return BType::Int;
         case ast::ASTNode::BType::Float: return BType::Float;
@@ -13,7 +13,7 @@ BType getBTypeFromAST(ast::ASTNode::BType btype) {
     }
 }
 
-IR::pType getTypeFromBType(BType btype) {
+IR::pType Visitor::getTypeFromBType(BType btype) {
     switch (btype) {
         case BType::Int: return IR::Type::getI32Type();
         case BType::Float: return IR::Type::getFloatType();
@@ -22,47 +22,46 @@ IR::pType getTypeFromBType(BType btype) {
 }
 
 IR::Value* Visitor::visit(const ast::ASTNode &node) {
-    switch(node.type) {
-        case ast::ASTNode::Type::CompUnit:
-            return visit(static_cast<const ast::CompUnit&>(node));
-        default:
-            return undefinedValue;
-    }
+    return const_cast<ast::ASTNode&>(node).accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::CompUnit &node) {
-    for (auto &decl : node.decls) {
-        visit(*decl);
+IR::Value* Visitor::visit(const ast::CompUnit &node) {
+    for (const auto &decl : node.decls) {
+        if (!decl) {
+            std::cerr << "Warning: null declaration in CompUnit" << std::endl;
+            continue;
+        }
+        decl->accept(*this);
+    }
+    return nullptr;
+}
+
+IR::Value* Visitor::visit(const ast::Decl &node) {
+    return node.decl->accept(*this);
+}
+
+IR::Value* Visitor::visit(const ast::ConstDecl &node) {
+    for (const auto &def : node.constDefs) {
+        def->accept(*this);
     }
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::Decl &node) {
-    return visit(*node.decl);
-}
-
-IR::Value* Visitor::visit(ast::ConstDecl &node) {
-    for (auto &def : node.constDefs) {
-        visit(*def);
-    }
-    return nullptr;
-}
-IR::Value* Visitor::visit(ast::VarDecl &node) {
-    // 保存当前类型到成员变量
+IR::Value* Visitor::visit(const ast::VarDecl &node) {
     currentBType = node.btype;
-    for (auto &def : node.varDefs) {
-        visit(*def);
+    for (const auto &def : node.varDefs) {
+        def->accept(*this);
     }
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::VarDef &node) {
+IR::Value* Visitor::visit(const ast::VarDef &node) {
     IR::pType varType = getTypeFromBType(currentBType);
     
     if (!node.dimensions.empty()) {
         std::vector<IR::Value*> dimValues;
-        for (auto& dim : node.dimensions) {
-            dimValues.push_back(visit(*dim));
+        for (const auto& dim : node.dimensions) {
+            dimValues.push_back(dim->accept(*this));
         }
         varType = IR::ArrayType::getArrayType(dimValues.size(), varType);
     }
@@ -70,31 +69,31 @@ IR::Value* Visitor::visit(ast::VarDef &node) {
     auto alloca = builder.CreateAlloca(varType, node.ident);
 
     if (node.initVal && *node.initVal) {
-        auto initVal = visit(**node.initVal);
+        auto initVal = (*node.initVal)->accept(*this);
         builder.CreateStore(initVal, alloca);
     }
     
     return alloca;
 }
 
-IR::Value* Visitor::visit(ast::FuncDef &node) {
+IR::Value* Visitor::visit(const ast::FuncDef &node) {
     symbolTable.enterScope();
     if (node.funcFParams) {
-        visit(*node.funcFParams);
+        node.funcFParams->accept(*this);
     }
-    visit(*node.block);
+    node.block->accept(*this);
     symbolTable.exitScope();
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::FuncFParams& node) {
-    for (auto& param : node.funcFParams) {
-        visit(*param);
+IR::Value* Visitor::visit(const ast::FuncFParams& node) {
+    for (const auto& param : node.funcFParams) {
+        param->accept(*this);
     }
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::FuncFParam& node) {
+IR::Value* Visitor::visit(const ast::FuncFParam& node) {
     IR::pType paramType = getTypeFromBType(node.btype);
     
     if (node.dimensions && !node.dimensions->empty()) {
@@ -105,42 +104,43 @@ IR::Value* Visitor::visit(ast::FuncFParam& node) {
     return alloca;
 }
 
-IR::Value* Visitor::visit(ast::Block &node) {
+IR::Value* Visitor::visit(const ast::Block &node) {
     symbolTable.enterScope();
-    for (auto &item : node.blockItems) {
-        visit(*item);
+    for (const auto &item : node.blockItems) {
+        item->accept(*this);
     }
     symbolTable.exitScope();
-    return nullptr; // 无实际返回值
+    return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::BlockItem &node) {
-    return visit(*node.item); 
+IR::Value* Visitor::visit(const ast::BlockItem &node) {
+    return node.item->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::Stmt &node) {
-    return visit(*node.stmt);
+IR::Value* Visitor::visit(const ast::Stmt &node) {
+    return node.stmt->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::Stmt::AssignStmt& node) {
-    auto lval = visit(*node.lval);
-    auto exp = visit(*node.exp);
+IR::Value* Visitor::visit(const ast::Stmt::AssignStmt& node) {
+    auto lval = node.lval->accept(*this);
+    auto exp = node.exp->accept(*this);
     builder.CreateStore(exp, lval);
     return exp;
 }
 
-IR::Value* Visitor::visit(ast::Stmt::ExpStmt& node) {
+IR::Value* Visitor::visit(const ast::Stmt::ExpStmt& node) {
+
     if (node.exp && *node.exp) {
-        return visit(**node.exp);
+        return (*node.exp)->accept(*this);
     }
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::Stmt::BlockStmt& node) {
-    return visit(*node.block);
+IR::Value* Visitor::visit(const ast::Stmt::BlockStmt& node) {
+    return node.block->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::Stmt::ContinueStmt& node) {
+IR::Value* Visitor::visit(const ast::Stmt::ContinueStmt& node) {
     if (!loopStack.empty()) {
         loop_info& loop = loopStack.top();
         return builder.CreateBr(loop.continue_b);
@@ -148,17 +148,17 @@ IR::Value* Visitor::visit(ast::Stmt::ContinueStmt& node) {
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::Stmt::ReturnStmt& node) {
+IR::Value* Visitor::visit(const ast::Stmt::ReturnStmt& node) {
     if (node.exp && *node.exp) {
-        auto retVal = visit(**node.exp);
-        return builder.CreateRet(retVal,currentFunction);
+        auto retVal = (*node.exp)->accept(*this);
+        return builder.CreateRet(retVal, currentFunction);
     } else {
         return builder.CreateRetVoid(currentFunction);
     }
 }
 
-IR::Value* Visitor::visit(ast::Stmt::IfStmt &node) {
-    auto cond = visit(*node.exp);
+IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
+    auto cond = node.exp->accept(*this);
     auto trueBB = new IR::BasicBlock("if.true");
     auto falseBB = new IR::BasicBlock("if.false");
     auto mergeBB = new IR::BasicBlock("if.merge");
@@ -166,33 +166,33 @@ IR::Value* Visitor::visit(ast::Stmt::IfStmt &node) {
     auto condBr = builder.CreateCondBr(cond, trueBB, falseBB);
     
     builder.SetInsertPoint(trueBB);
-    visit(*node.block);
+    node.block->accept(*this);
     builder.CreateBr(mergeBB);
     
     if (node.elseStmt) {
         builder.SetInsertPoint(falseBB);
-        visit(**node.elseStmt);
+        (*node.elseStmt)->accept(*this);
         builder.CreateBr(mergeBB);
     }
     
     builder.SetInsertPoint(mergeBB);
-    return condBr; // 返回条件分支指令
+    return condBr;
 }
 
-IR::Value* Visitor::visit(ast::Stmt::WhileStmt &node) {
+IR::Value* Visitor::visit(const ast::Stmt::WhileStmt &node) {
     loop_info loop;
     loop.continue_b = new IR::BasicBlock("continue");
     loop.break_b = new IR::BasicBlock("break");
     loopStack.push(loop);
     
-    auto cond = visit(*node.cond);
-    visit(*node.stmt);
+    auto cond = node.cond->accept(*this);
+    node.stmt->accept(*this);
     
     loopStack.pop();
-    return cond; // 返回条件表达式值
+    return cond;
 }
 
-IR::Value* Visitor::visit(ast::Stmt::BreakStmt &node) {
+IR::Value* Visitor::visit(const ast::Stmt::BreakStmt &node) {
     if (!loopStack.empty()) {
         loop_info &loop = loopStack.top();
         return builder.CreateBr(loop.break_b);
@@ -200,7 +200,7 @@ IR::Value* Visitor::visit(ast::Stmt::BreakStmt &node) {
     return nullptr;
 }
 
-IR::Value* Visitor::visit(ast::Number &node) {
+IR::Value* Visitor::visit(const ast::Number &node) {
     if (std::holds_alternative<int>(node.value)) {
         return IR::ConstantInt32::get(std::get<int>(node.value));
     } else {
@@ -208,7 +208,7 @@ IR::Value* Visitor::visit(ast::Number &node) {
     }
 }
 
-IR::Value* Visitor::visit(ast::LVal &node) {
+IR::Value* Visitor::visit(const ast::LVal &node) {
     auto symbol = symbolTable.lookup(node.ident);
     if (!symbol) return undefinedValue;
     
@@ -218,8 +218,8 @@ IR::Value* Visitor::visit(ast::LVal &node) {
     if (!node.dimensions.empty()) {
         std::vector<IR::Value*> indices;
         indices.push_back(IR::ConstantInt32::get(0)); 
-        for (auto& dim : node.dimensions) {
-            indices.push_back(visit(*dim));
+        for (const auto& dim : node.dimensions) {
+            indices.push_back(dim->accept(*this));
         }
         varPtr = builder.CreateGEP(varType, varPtr, indices);
     }
@@ -227,26 +227,26 @@ IR::Value* Visitor::visit(ast::LVal &node) {
     return builder.CreateLoad(varType, varPtr);
 }
 
-IR::Value* Visitor::visit(ast::Exp& node) {
-    return visit(*node.addExp);
+IR::Value* Visitor::visit(const ast::Exp& node) {
+    return node.addExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::PrimaryExp& node) {
+IR::Value* Visitor::visit(const ast::PrimaryExp& node) {
     if (std::holds_alternative<ast::ASTNodePtr>(node.primaryExp)) {
-        return visit(*std::get<ast::ASTNodePtr>(node.primaryExp));
+        return std::get<ast::ASTNodePtr>(node.primaryExp)->accept(*this);
     } else {
         return visit(std::get<ast::Number>(node.primaryExp));
     }
 }
 
-IR::Value* Visitor::visit(ast::UnaryExp &node) {
-    return visit(*node.unaryExp);
+IR::Value* Visitor::visit(const ast::UnaryExp &node) {
+    return node.unaryExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::UnaryExp::UnaryExpCall& node) {
+IR::Value* Visitor::visit(const ast::UnaryExp::UnaryExpCall& node) {
     std::vector<IR::Value*> args;
     for (auto& param : node.funcRParams) {
-        args.push_back(visit(*param));
+        args.push_back(param->accept(*this));
     }
     auto funcSymbol = symbolTable.lookup(node.ident);
     if (!funcSymbol || !funcSymbol->value->isFunction()) {
@@ -256,8 +256,8 @@ IR::Value* Visitor::visit(ast::UnaryExp::UnaryExpCall& node) {
     return builder.CreateCall(callee, args);
 }
 
-IR::Value* Visitor::visit(ast::UnaryExp::UnaryExpOp &node) {
-    auto val = visit(*node.unaryExp);
+IR::Value* Visitor::visit(const ast::UnaryExp::UnaryExpOp &node) {
+    auto val = node.unaryExp->accept(*this);
     switch(node.unaryOp) {
         case ast::ASTNode::UnaryOp::Plus: return val;
         case ast::ASTNode::UnaryOp::Minus: 
@@ -268,21 +268,21 @@ IR::Value* Visitor::visit(ast::UnaryExp::UnaryExpOp &node) {
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::FuncRParams& node) {
+IR::Value* Visitor::visit(const ast::FuncRParams& node) {
     std::vector<IR::Value*> args;
     for (auto& exp : node.exps) {
-        args.push_back(visit(*exp));
+        args.push_back(exp->accept(*this));
     }
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::MulExp &node) {
-    return visit(*node.mulExp);
+IR::Value* Visitor::visit(const ast::MulExp &node) {
+    return node.mulExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::MulExp::MulExpOp& node) {
-    auto left = visit(*node.mulExp);
-    auto right = visit(*node.unaryExp);
+IR::Value* Visitor::visit(const ast::MulExp::MulExpOp& node) {
+    auto left = node.mulExp->accept(*this);
+    auto right = node.unaryExp->accept(*this);
     switch(node.mulOp) {
         case ast::ASTNode::MulOp::Mul: 
             return builder.CreateMul(left, right);
@@ -294,13 +294,13 @@ IR::Value* Visitor::visit(ast::MulExp::MulExpOp& node) {
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::AddExp &node) {
-    return visit(*node.addExp);
+IR::Value* Visitor::visit(const ast::AddExp &node) {
+    return node.addExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::AddExp::AddExpOp& node) {
-    auto left = visit(*node.addExp);
-    auto right = visit(*node.mulExp);
+IR::Value* Visitor::visit(const ast::AddExp::AddExpOp& node) {
+    auto left = node.addExp->accept(*this);
+    auto right = node.mulExp->accept(*this);
     switch(node.addOp) {
         case ast::ASTNode::AddOp::Plus:
             return builder.CreateAdd(left, right);
@@ -310,15 +310,14 @@ IR::Value* Visitor::visit(ast::AddExp::AddExpOp& node) {
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::RelExp &node) {
-    return visit(*node.relExp);
+IR::Value* Visitor::visit(const ast::RelExp &node) {
+    return node.relExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::RelExp::RelExpOp& node) {
-    auto left = visit(*node.relExp);
-    auto right = visit(*node.addExp);
+IR::Value* Visitor::visit(const ast::RelExp::RelExpOp& node) {
+    auto left = node.relExp->accept(*this);
+    auto right = node.addExp->accept(*this);
     
-    // 类型转换处理
     if (left->getType()->isFloatTy() != right->getType()->isFloatTy()) {
         if (left->getType()->isFloatTy()) {
             right = builder.CreateSItoFP(right);
@@ -328,7 +327,6 @@ IR::Value* Visitor::visit(ast::RelExp::RelExpOp& node) {
     }
 
     if (left->getType()->isFloatTy()) {
-        // 浮点比较
         switch(node.relOp) {
             case ast::ASTNode::RelOp::Less:
                 return builder.CreateFLt(left, right);
@@ -340,7 +338,6 @@ IR::Value* Visitor::visit(ast::RelExp::RelExpOp& node) {
                 return builder.CreateFGe(left, right);
         }
     } else {
-        // 整数比较
         switch(node.relOp) {
             case ast::ASTNode::RelOp::Less:
                 return builder.CreateLt(left, right);
@@ -355,15 +352,14 @@ IR::Value* Visitor::visit(ast::RelExp::RelExpOp& node) {
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::EqExp &node) {
-    return visit(*node.eqExp);
+IR::Value* Visitor::visit(const ast::EqExp &node) {
+    return node.eqExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::EqExp::EqExpOp& node) {
-    auto left = visit(*node.eqExp);
-    auto right = visit(*node.relExp);
+IR::Value* Visitor::visit(const ast::EqExp::EqExpOp& node) {
+    auto left = node.eqExp->accept(*this);
+    auto right = node.relExp->accept(*this);
     
-    // 类型转换处理
     if (left->getType()->isFloatTy() != right->getType()->isFloatTy()) {
         if (left->getType()->isFloatTy()) {
             right = builder.CreateSItoFP(right);
@@ -373,7 +369,6 @@ IR::Value* Visitor::visit(ast::EqExp::EqExpOp& node) {
     }
 
     if (left->getType()->isFloatTy()) {
-        // 浮点比较
         switch(node.eqOp) {
             case ast::ASTNode::EqOp::Equal:
                 return builder.CreateFEq(left, right);
@@ -381,7 +376,6 @@ IR::Value* Visitor::visit(ast::EqExp::EqExpOp& node) {
                 return builder.CreateFNe(left, right);
         }
     } else {
-        // 整数比较
         switch(node.eqOp) {
             case ast::ASTNode::EqOp::Equal:
                 return builder.CreateEq(left, right);
@@ -392,38 +386,37 @@ IR::Value* Visitor::visit(ast::EqExp::EqExpOp& node) {
     return undefinedValue;
 }
 
-IR::Value* Visitor::visit(ast::LAndExp &node) {
-    return visit(*node.lAndExp);
+IR::Value* Visitor::visit(const ast::LAndExp &node) {
+    return node.lAndExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::LAndExp::LAndExpOp& node) {
-    auto left = visit(*node.lAndExp);
-    auto right = visit(*node.eqExp);
+IR::Value* Visitor::visit(const ast::LAndExp::LAndExpOp& node) {
+    auto left = node.lAndExp->accept(*this);
+    auto right = node.eqExp->accept(*this);
     return builder.CreateAnd(left, right);
 }
 
-IR::Value* Visitor::visit(ast::LOrExp &node) {
-    return visit(*node.lOrExp);
+IR::Value* Visitor::visit(const ast::LOrExp &node) {
+    return node.lOrExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::LOrExp::LOrExpOp& node) {
-    auto left = visit(*node.lOrExp);
-    auto right = visit(*node.lAndExp);
+IR::Value* Visitor::visit(const ast::LOrExp::LOrExpOp& node) {
+    auto left = node.lOrExp->accept(*this);
+    auto right = node.lAndExp->accept(*this);
     return builder.CreateOr(left, right);
 }
 
-IR::Value* Visitor::visit(ast::ConstExp& node) {
-    return visit(*node.addExp);
+IR::Value* Visitor::visit(const ast::ConstExp& node) {
+    return node.addExp->accept(*this);
 }
 
-IR::Value* Visitor::visit(ast::ConstDef& node) {
-    // 处理常量定义
+IR::Value* Visitor::visit(const ast::ConstDef& node) {
     IR::pType constType = getTypeFromBType(currentBType);
     
     if (!node.dimensions.empty()) {
         std::vector<IR::Value*> dimValues;
         for (auto& dim : node.dimensions) {
-            dimValues.push_back(visit(*dim));
+            dimValues.push_back(dim->accept(*this));
         }
         constType = IR::ArrayType::getArrayType(dimValues.size(), constType);
     }
@@ -431,34 +424,31 @@ IR::Value* Visitor::visit(ast::ConstDef& node) {
     auto alloca = builder.CreateAlloca(constType, node.ident);
     
     if (node.constInitVal) {
-        auto initVal = visit(*node.constInitVal);
+        auto initVal = node.constInitVal->accept(*this);
         builder.CreateStore(initVal, alloca);
     }
     
     return alloca;
 }
 
-IR::Value* Visitor::visit(ast::InitVal& node) {
+IR::Value* Visitor::visit(const ast::InitVal& node) {
     if (std::holds_alternative<ast::ASTNodePtr>(node.initVal)) {
-        return visit(*std::get<ast::ASTNodePtr>(node.initVal));
+        return std::get<ast::ASTNodePtr>(node.initVal)->accept(*this);
     } else {
         return undefinedValue;
     }
 }
 
-IR::Value* Visitor::visit(ast::ConstInitVal& node) {
+IR::Value* Visitor::visit(const ast::ConstInitVal& node) {
     if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
-        return visit(*std::get<ast::ASTNodePtr>(node.constInitVal));
+        return std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
     } else {
         return undefinedValue;
     }
 }
 
-IR::Value* Visitor::visit(ast::Cond& node) {
-    return visit(*node.lOrExp);
+IR::Value* Visitor::visit(const ast::Cond& node) {
+    return node.lOrExp->accept(*this);
 }
-
-
-
 
 } // namespace frontend::visitor

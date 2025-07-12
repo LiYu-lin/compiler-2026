@@ -11,7 +11,7 @@
 
 #include "Parse/AST.h"
 #include <sstream>
-#include "SymbolTable/Visitor.h"
+#include "GenIR/Visitor.h"
 namespace frontend {
 namespace ast {
 IR::Value* ASTNode::accept(frontend::visitor::Visitor& visitor) const {
