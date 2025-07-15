@@ -1,5 +1,5 @@
 #pragma once
-
+#include <cassert>
 namespace IR {
     template<typename T>
     class List;
@@ -8,16 +8,14 @@ namespace IR {
     struct BasicBlock;
     struct ListNode {
         const int id =0;
-        ListNode* next;
-        ListNode* prev;
-        ListNode(int val) : id(val), next(nullptr) {}
-        ~ListNode() {
-            delete next;  // 递归删除后续节点
-        }
-        ListNode* getNext() const {
+        ListNode *next = nullptr;
+        ListNode *prev = nullptr;
+        ListNode(int val) : id(val), next(nullptr),prev(nullptr){}
+        ListNode(ListNode *ne, ListNode *pr, const int x) : id(x), next(ne), prev(pr) {}
+        ListNode* getNext()  {
             return next;
         }
-        ListNode* getPrev() const {
+        ListNode* getPrev() {
             return prev;
         }
         int getID() const {
@@ -27,40 +25,56 @@ namespace IR {
             return next == nullptr;
         }
         void clear() {
-            delete next;  // 删除后续节点
-            next = nullptr;  // 清空指针
+            while (next != nullptr) {
+                ListNode* temp = next;
+                next = next->next;
+                delete temp;  // 迭代删除，避免递归
+            }
         }
         friend struct List<IR::Instruction *>;
         friend struct List<IR::Use *>;
         friend struct List<IR::BasicBlock *>;
         private:
         void insertAfter(ListNode* node) {
-            if (node == nullptr) return;
-            node->next = next;
-            if (next != nullptr) {
-                next->prev = node;
+            assert(node != nullptr && "Cannot insert after null");
+            assert(node != this && "Cannot insert after self");
+            // 检查是否形成循环
+            ListNode* current = node;
+            while (current != nullptr) {
+                if (current == this) {
+                    assert(false && "Error: Circular reference detected");
+                    return;
+                }
+                current = current->next;
             }
-            next = node;
-            node->prev = this;
-        }
-        void insertBefore(ListNode* node) {
-            if (node == nullptr) return;
-            node->prev = prev;
-            if (prev != nullptr) {
-                prev->next = node;
-            }
+            next = node->next;
             prev = node;
+            if (node->next) {
+                node->next->prev = this;
+            }
             node->next = this;
         }
+        void insertBefore(ListNode *node)
+        {
+            if (node == nullptr)
+                return;
+            next = node;
+            prev = node->prev;
+            if (node->prev != nullptr)
+            {
+                node->prev->next = this;
+            }
+            node->prev = this;
+        }
         virtual void remove() {
-            if (prev != nullptr) {
-                prev->next = next;
+            if (this == prev || this == next) {
+                assert(false && "Error: Self-reference detected in remove()");
+                return;
             }
-            if (next != nullptr) {
-                next->prev = prev;
-            }
-            prev = nullptr;
+            if (prev) prev->next = next;
+            if (next) next->prev = prev;
             next = nullptr;
+            prev = nullptr;
         }
     };
 }

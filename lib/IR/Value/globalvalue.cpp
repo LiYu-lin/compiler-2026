@@ -46,6 +46,10 @@ namespace IR
         for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
         {
             BasicBlock *BB = static_cast<BasicBlock *>(i);
+            if (!BB) { 
+            std::cerr << "Warning: Null BasicBlock encountered" << std::endl;
+            continue;
+        }
             BB->emitIR(os);
         }
         os << "}\n";

@@ -444,7 +444,6 @@ namespace IR {
     }
 
     void Instruction::remove() {
-        // 移除形成的前驱后继关系, (已不需要)
         // 从BB中的instructionList中移除
         if (prev != nullptr)
         {

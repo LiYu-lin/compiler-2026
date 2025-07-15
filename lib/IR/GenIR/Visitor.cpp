@@ -1,7 +1,10 @@
 #include "GenIR/Visitor.h"
 #include "Parse/AST.h"
+#include "ir/Value/globalvalue.h"
 #include "ir/basicblock.h"
 #include "ir/type.h"
+#include "ir/value.h"
+#include <iostream>
 using BType = frontend::ast::ASTNode::BType;
 namespace frontend::visitor {
 
@@ -9,45 +12,166 @@ BType Visitor::getBTypeFromAST(ast::ASTNode::BType btype) {
     switch (btype) {
         case ast::ASTNode::BType::Int: return BType::Int;
         case ast::ASTNode::BType::Float: return BType::Float;
-        default: throw std::runtime_error("Unknown BType");
+        default: throw std::runtime_error("getBTypeFromAST: Unknown BType");
     }
 }
 
 IR::pType Visitor::getTypeFromBType(BType btype) {
+    // 添加调试输出，帮助定位问题
+    std::cout << "Debug: getTypeFromBType called with btype=" 
+              << static_cast<int>(btype) << std::endl;
+              
     switch (btype) {
-        case BType::Int: return IR::Type::getI32Type();
-        case BType::Float: return IR::Type::getFloatType();
-        default: throw std::runtime_error("Unknown BType");
+        case BType::Int: 
+            std::cout << "Debug: Returning i32 type" << std::endl;
+            return IR::Type::getI32Type();
+        case BType::Float: 
+            std::cout << "Debug: Returning float type" << std::endl;
+            return IR::Type::getFloatType();
+        default: {
+            std::stringstream ss;
+            ss << "getTypeFromBType: Unknown BType value: " << static_cast<int>(btype);
+            throw std::runtime_error(ss.str());
+        }
+    }
+}
+
+IR::pType Visitor::getTypeFromfuncType(const FuncType &funcType) {
+    switch (funcType) {
+        case FuncType::Void: return IR::Type::getVoidType();
+        case FuncType::Int: return IR::Type::getI32Type();
+        case FuncType::Float: return IR::Type::getFloatType();
+        default: throw std::runtime_error("getTypeFromfuncType: Unknown FuncType");
     }
 }
 
 IR::Value* Visitor::visit(const ast::ASTNode &node) {
+    std::cout <<"visit node begin" << std::endl;
     return const_cast<ast::ASTNode&>(node).accept(*this);
 }
 
 IR::Value* Visitor::visit(const ast::CompUnit &node) {
+    std::cout << "Visiting CompUnit with " << node.decls.size() << " declarations." << std::endl;
+    auto globalInitBB = new IR::BasicBlock("global.init");
+    builder.SetInsertPoint(globalInitBB);
     for (const auto &decl : node.decls) {
         if (!decl) {
             std::cerr << "Warning: null declaration in CompUnit" << std::endl;
             continue;
         }
+        std::cout << "Visiting declaration: "<< std::endl;
         decl->accept(*this);
+    }
+    if (!globalInitBB->isEmpty()) {
+        module.addGlobalInitBlock(globalInitBB);
+    } else {
+        delete globalInitBB;
     }
     return nullptr;
 }
 
 IR::Value* Visitor::visit(const ast::Decl &node) {
+    std::cout << "Visiting Decl " << std::endl;
     return node.decl->accept(*this);
 }
 
 IR::Value* Visitor::visit(const ast::ConstDecl &node) {
+    std::cout << "Visiting ConstDecl with btype=" << static_cast<int>(node.btype) << std::endl;
+    currentBType = node.btype;
     for (const auto &def : node.constDefs) {
         def->accept(*this);
     }
     return nullptr;
 }
 
+IR::Value* Visitor::visit(const ast::InitVal& node) {
+    std::cout << "Visiting InitVal." << std::endl;
+    if (std::holds_alternative<ast::ASTNodePtr>(node.initVal)) {
+        std::cout << "InitVal contains ASTNodePtr." << std::endl;
+        return std::get<ast::ASTNodePtr>(node.initVal)->accept(*this);
+    } else {
+        std::cout << "InitVal contains unexpected type." << std::endl;
+        return undefinedValue;
+    }
+}
+
+IR::Value* Visitor::visit(const ast::ConstDef& node) {
+    std::cout << "Visiting ConstDef: " << node.ident << std::endl;
+    
+    // 检查常量是否已定义
+    if (symbolTable.lookup(node.ident)) {
+        std::cerr << "Error: Redefinition of constant '" << node.ident << "'" << std::endl;
+        return undefinedValue;
+    }
+
+    IR::pType constType = getTypeFromBType(currentBType);
+    std::vector<int> dimValues;
+    if (!node.dimensions.empty()) {
+        std::vector<IR::Value*> dimIRValues;
+        for (auto& dim : node.dimensions) {
+            dimIRValues.push_back(dim->accept(*this));
+            if (auto constInt = dynamic_cast<IR::ConstantInt32*>(dimIRValues.back())) {
+                dimValues.push_back(constInt->getValue());
+            }
+        }
+        constType = IR::ArrayType::getArrayType(dimValues.size(), constType);
+    }
+    std::cout << "Debug: Creating alloca for " << node.ident << std::endl;
+    std::cout << "Type: " << constType->to_string() << std::endl;
+    std::cout << "Current BB: " << (builder.GetInsertBlock() ? builder.GetInsertBlock()->getIRName() : "null") << std::endl;
+
+    auto alloca = builder.CreateAlloca(constType, node.ident,true);
+
+    std::cout << "Created alloca for const: " << node.ident << std::endl;
+    if (node.constInitVal) {
+        std::cout << "ConstDef has init value, processing it." << std::endl;
+        auto initVal = node.constInitVal->accept(*this);
+        builder.CreateStore(initVal, alloca);
+    }
+
+    // 设置符号表信息
+    SymbolInfo info(node.ident, currentBType, true, symbolTable.getCurrentScopeLevel());
+    info.isArray = !node.dimensions.empty();
+    info.dims = dimValues;
+    info.value = alloca;
+    
+    if (!symbolTable.insert(node.ident, info)) {
+        std::cerr << "Error: Failed to insert constant '" << node.ident << "' into symbol table" << std::endl;
+    }
+    
+    return alloca;
+}
+
+IR::Value* Visitor::visit(const ast::ConstInitVal& node) {
+    std::cout << "Visiting ConstInitVal." << std::endl;
+    if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
+        auto ptr = std::get<ast::ASTNodePtr>(node.constInitVal);
+        std::cout << "ConstInitVal contains ASTNodePtr: " << ptr->toString(0) << std::endl;
+        auto val = ptr->accept(*this);
+        if (!dynamic_cast<IR::Constant*>(val)) {
+            std::cerr << "Error: ConstInitVal must evaluate to constant" << std::endl;
+            return undefinedValue;
+        }
+        return val;
+    } else {
+        std::cout << "ConstInitVal contains unexpected type." << std::endl;
+        return undefinedValue;
+    }
+}
+
+IR::Value* Visitor::visit(const ast::Number &node) {
+    if (std::holds_alternative<int>(node.value)) {
+        int val = std::get<int>(node.value);
+        std::cout << "Visiting Number with int value: " << val << std::endl;
+        return IR::ConstantInt32::get(val);
+    } else {
+        float val = std::get<float>(node.value);
+        std::cout << "Visiting Number with float value: " << val << std::endl;
+        return IR::ConstantFloat::get(val);
+    }
+}
 IR::Value* Visitor::visit(const ast::VarDecl &node) {
+    std::cout<< "Visiting VarDecl with btype=" << static_cast<int>(node.btype) << std::endl;
     currentBType = node.btype;
     for (const auto &def : node.varDefs) {
         def->accept(*this);
@@ -56,37 +180,107 @@ IR::Value* Visitor::visit(const ast::VarDecl &node) {
 }
 
 IR::Value* Visitor::visit(const ast::VarDef &node) {
+    std::cout << "Visiting VarDef: " << node.ident << std::endl;
     IR::pType varType = getTypeFromBType(currentBType);
     
+    std::vector<int> dimValues;
     if (!node.dimensions.empty()) {
-        std::vector<IR::Value*> dimValues;
+        std::vector<IR::Value*> dimIRValues;
         for (const auto& dim : node.dimensions) {
-            dimValues.push_back(dim->accept(*this));
+            auto dimVal = dim->accept(*this);
+            dimIRValues.push_back(dimVal);
+            if (auto constInt = dynamic_cast<IR::ConstantInt32*>(dimVal)) {
+                dimValues.push_back(constInt->getValue());
+            } else {
+                std::cerr << "Error: Array dimension must be constant integer" << std::endl;
+                return undefinedValue;
+            }
         }
         varType = IR::ArrayType::getArrayType(dimValues.size(), varType);
     }
     
-    auto alloca = builder.CreateAlloca(varType, node.ident);
+    // 区分全局变量和局部变量
+    IR::Value* varValue = nullptr;
+    if (currentFunction) {
+        varValue = builder.CreateAlloca(varType, node.ident);
+        
+        if (node.initVal && *node.initVal) {
+            auto initVal = (*node.initVal)->accept(*this);
+            builder.CreateStore(initVal, varValue);
+        }
+    } else {
+        // 全局变量处理
+        IR::Constant* initVal = nullptr;
+        if (node.initVal && *node.initVal) {
+            auto val = (*node.initVal)->accept(*this);
+            initVal = dynamic_cast<IR::Constant*>(val);
+            if (!initVal) {
+                std::cerr << "Error: Global variable must be initialized with constant" << std::endl;
+                return undefinedValue;
+            }
+        }
+        varValue = new IR::GlobalVariable(varType, node.ident, initVal, false);
+        module.addGlobal(static_cast<IR::GlobalVariable*>(varValue));
+    }
 
-    if (node.initVal && *node.initVal) {
-        auto initVal = (*node.initVal)->accept(*this);
-        builder.CreateStore(initVal, alloca);
+    // 符号表记录
+    SymbolInfo info(
+        node.ident,
+        currentBType,
+        false,
+        symbolTable.getCurrentScopeLevel()
+    );
+    info.isArray = !node.dimensions.empty();
+    info.dims = dimValues;
+    info.value = varValue;
+    
+    if (!symbolTable.insert(node.ident, info)) {
+        std::cerr << "Error: Redefinition of variable '" << node.ident << "'" << std::endl;
     }
     
-    return alloca;
+    return varValue;
 }
 
 IR::Value* Visitor::visit(const ast::FuncDef &node) {
+    std::cout<< "Visiting FuncDef: " << node.ident << std::endl<< std::flush;
+    
+    if (symbolTable.lookup(node.ident)) {
+        std::cerr << "Error: Redefinition of function '" << node.ident << "'" << std::endl;
+        return nullptr;
+    }
+
+    IR::pType retType = getTypeFromfuncType(node.funcType);
+    std::vector<IR::pType> paramTypes;
+    if (node.funcFParams) {
+        for (const auto& param : static_cast<ast::FuncFParams*>(node.funcFParams.get())->funcFParams) {
+            auto paramNode = static_cast<ast::FuncFParam*>(param.get());
+            paramTypes.push_back(getTypeFromBType(paramNode->btype));
+        }
+    }
+    currentFunction = new IR::Function( retType,node.ident ,paramTypes);
+    module.addGlobal(currentFunction);
+    
+    SymbolInfo funcInfo(node.ident, node.funcType, symbolTable.getCurrentScopeLevel());
+    funcInfo.value = currentFunction;
+    symbolTable.insert(node.ident, funcInfo);
+    
     symbolTable.enterScope();
+    auto entryBB = new IR::BasicBlock("entry");
+    builder.SetInsertPoint(entryBB);
+    
     if (node.funcFParams) {
         node.funcFParams->accept(*this);
     }
+    
     node.block->accept(*this);
+    
+    currentFunction = nullptr;
     symbolTable.exitScope();
     return nullptr;
 }
 
 IR::Value* Visitor::visit(const ast::FuncFParams& node) {
+    std::cout << "Visiting FuncFParams with " << node.funcFParams.size() << " parameters." << std::endl;
     for (const auto& param : node.funcFParams) {
         param->accept(*this);
     }
@@ -94,6 +288,8 @@ IR::Value* Visitor::visit(const ast::FuncFParams& node) {
 }
 
 IR::Value* Visitor::visit(const ast::FuncFParam& node) {
+    std::cout << "Visiting FuncFParam: " << node.ident << std::endl;   
+
     IR::pType paramType = getTypeFromBType(node.btype);
     
     if (node.dimensions && !node.dimensions->empty()) {
@@ -105,6 +301,7 @@ IR::Value* Visitor::visit(const ast::FuncFParam& node) {
 }
 
 IR::Value* Visitor::visit(const ast::Block &node) {
+    std::cout << "Visiting Block with " << node.blockItems.size() << " items." << std::endl;
     symbolTable.enterScope();
     for (const auto &item : node.blockItems) {
         item->accept(*this);
@@ -114,14 +311,17 @@ IR::Value* Visitor::visit(const ast::Block &node) {
 }
 
 IR::Value* Visitor::visit(const ast::BlockItem &node) {
+    std::cout << "Visiting BlockItem." << std::endl;
     return node.item->accept(*this);
 }
 
 IR::Value* Visitor::visit(const ast::Stmt &node) {
+    std::cout << "Visiting Stmt." << std::endl;
     return node.stmt->accept(*this);
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::AssignStmt& node) {
+    std::cout << "Visiting AssignStmt." << std::endl;
     auto lval = node.lval->accept(*this);
     auto exp = node.exp->accept(*this);
     builder.CreateStore(exp, lval);
@@ -129,6 +329,7 @@ IR::Value* Visitor::visit(const ast::Stmt::AssignStmt& node) {
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::ExpStmt& node) {
+    std::cout << "Visiting ExpStmt." << std::endl;
 
     if (node.exp && *node.exp) {
         return (*node.exp)->accept(*this);
@@ -149,10 +350,21 @@ IR::Value* Visitor::visit(const ast::Stmt::ContinueStmt& node) {
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::ReturnStmt& node) {
+    if (!currentFunction) {
+        std::cerr << "Error: return statement outside function" << std::endl;
+        return nullptr;
+    }
+
     if (node.exp && *node.exp) {
         auto retVal = (*node.exp)->accept(*this);
+        std::cout << "Returning value from function: " << currentFunction->getIRName() << std::endl;
         return builder.CreateRet(retVal, currentFunction);
     } else {
+        if (!currentFunction->getReturnType()->isVoidTy()) {
+            std::cerr << "Error: Non-void function " << currentFunction->getIRName()
+                      << " should return a value" << std::endl;
+            return nullptr;
+        }
         return builder.CreateRetVoid(currentFunction);
     }
 }
@@ -200,22 +412,29 @@ IR::Value* Visitor::visit(const ast::Stmt::BreakStmt &node) {
     return nullptr;
 }
 
-IR::Value* Visitor::visit(const ast::Number &node) {
-    if (std::holds_alternative<int>(node.value)) {
-        return IR::ConstantInt32::get(std::get<int>(node.value));
-    } else {
-        return IR::ConstantFloat::get(std::get<float>(node.value));
-    }
-}
-
 IR::Value* Visitor::visit(const ast::LVal &node) {
     auto symbol = symbolTable.lookup(node.ident);
-    if (!symbol) return undefinedValue;
+    if (!symbol) {
+        std::cerr << "Error: Undefined variable '" << node.ident << "'" << std::endl;
+        return undefinedValue;
+    }
     
+    // 如果是常量，直接返回其值
+    if (symbol->isConst) {
+        if (auto constant = dynamic_cast<IR::Constant*>(symbol->value)) {
+            return constant;
+        }
+    }
+    
+    // 否则正常处理变量加载
     IR::Value *varPtr = symbol->value;
     IR::pType varType = getTypeFromBType(symbol->baseType);
 
     if (!node.dimensions.empty()) {
+        if (!symbol->isArray) {
+            std::cerr << "Error: '" << node.ident << "' is not an array" << std::endl;
+            return undefinedValue;
+        }
         std::vector<IR::Value*> indices;
         indices.push_back(IR::ConstantInt32::get(0)); 
         for (const auto& dim : node.dimensions) {
@@ -408,43 +627,6 @@ IR::Value* Visitor::visit(const ast::LOrExp::LOrExpOp& node) {
 
 IR::Value* Visitor::visit(const ast::ConstExp& node) {
     return node.addExp->accept(*this);
-}
-
-IR::Value* Visitor::visit(const ast::ConstDef& node) {
-    IR::pType constType = getTypeFromBType(currentBType);
-    
-    if (!node.dimensions.empty()) {
-        std::vector<IR::Value*> dimValues;
-        for (auto& dim : node.dimensions) {
-            dimValues.push_back(dim->accept(*this));
-        }
-        constType = IR::ArrayType::getArrayType(dimValues.size(), constType);
-    }
-    
-    auto alloca = builder.CreateAlloca(constType, node.ident);
-    
-    if (node.constInitVal) {
-        auto initVal = node.constInitVal->accept(*this);
-        builder.CreateStore(initVal, alloca);
-    }
-    
-    return alloca;
-}
-
-IR::Value* Visitor::visit(const ast::InitVal& node) {
-    if (std::holds_alternative<ast::ASTNodePtr>(node.initVal)) {
-        return std::get<ast::ASTNodePtr>(node.initVal)->accept(*this);
-    } else {
-        return undefinedValue;
-    }
-}
-
-IR::Value* Visitor::visit(const ast::ConstInitVal& node) {
-    if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
-        return std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
-    } else {
-        return undefinedValue;
-    }
 }
 
 IR::Value* Visitor::visit(const ast::Cond& node) {

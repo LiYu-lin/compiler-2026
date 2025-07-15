@@ -29,8 +29,11 @@ int Type::getIntegerBits() const {
 }
 
 pType Type::getPointerBase() const {
-    assert(isPointerTy());
-    return static_cast<pPointerType>(this)->base;  
+    if (!isPointerTy()) {
+        assert(false && "Error: Expected pointer type but got ");
+        return nullptr;
+    }
+    return static_cast<pPointerType>(this)->base;
 }
 
 int Type::getArraySize() const {

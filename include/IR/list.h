@@ -10,20 +10,10 @@ namespace IR {
             sz = 0;
             head = new ListNode(0); 
             tail = new ListNode(0);
-            head->next = tail;
             tail->prev = head;
+            head->next = tail;
         }
-        ~List() {
-            clear();
-        }
-        void clear() {
-            while (head != nullptr) {
-                ListNode* next = head->getNext();
-                delete head;
-                head = next;
-            }
-            tail = nullptr;
-        }
+
         bool isEmpty() const {
             return head->getNext() == tail;
         }
@@ -34,12 +24,10 @@ namespace IR {
             return tail->getPrev();
         }
         void insertAfter(ListNode* newNode, T node) {
-            if (node == nullptr || newNode == nullptr || node->id == 0) return;
             node->insertAfter(newNode);
             sz++;
         }
         void insertBefore(ListNode* newNode, T node) {
-            if (node == nullptr || newNode == nullptr || node->id == 0) return;
             node->insertBefore(newNode);
             sz++;
         }

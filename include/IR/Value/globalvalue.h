@@ -35,7 +35,12 @@ namespace IR
 
         void waste() override;
 
-        pType getReturnType() { return type->getPointerBase(); }
+        pType getReturnType() { 
+            if (!type->isPointerTy()) {
+                return type;  // 如果不是指针类型，直接返回原类型
+            }
+            return type->getPointerBase(); 
+        }
 
         List<BasicBlock *> &blocks() { return funBlocks; }
         std::vector<BasicBlock *> getVectorBlocks();

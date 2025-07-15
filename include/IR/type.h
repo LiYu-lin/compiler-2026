@@ -53,14 +53,14 @@ struct Type {
     bool operator==(const Type &other) const { return this == &other; }
     bool operator!=(const Type &other) const { return this != &other; }
 
-    [[nodiscard]] bool isVoidTy() const { return type == VOID; }
-    [[nodiscard]] bool isLabelTy() const { return type == LABEL; }
-    [[nodiscard]] bool isInt32Ty() const { return type == INTEGER; }
-    [[nodiscard]] bool isFloatTy() const { return type == FLOAT; }
+    [[nodiscard]] bool isVoidTy() const { return type == TypeID::VOID; }
+    [[nodiscard]] bool isLabelTy() const { return type == TypeID::LABEL; }
+    [[nodiscard]] bool isInt32Ty() const { return type == TypeID::INTEGER; }
+    [[nodiscard]] bool isFloatTy() const { return type == TypeID::FLOAT; }
     [[nodiscard]] bool isNumberTy() const { return isInt32Ty() || isFloatTy(); }
-    [[nodiscard]] bool isPointerTy() const { return type == POINTER; }
-    [[nodiscard]] bool isArrayTy() const { return type == ARRAY; }
-    [[nodiscard]] bool isFunctionTy() const { return type == FUNCTION; }
+    [[nodiscard]] bool isPointerTy() const { return type == TypeID::POINTER; }
+    [[nodiscard]] bool isArrayTy() const { return type == TypeID::ARRAY; }
+    [[nodiscard]] bool isFunctionTy() const { return type == TypeID::FUNCTION; }
     [[nodiscard]] bool isStringTy() const;
     [[nodiscard]] int getIntegerBits() const;
     [[nodiscard]] pType getPointerBase() const;

@@ -1,5 +1,7 @@
 #include "ir/module.h"
 #include "ir/type.h"
+#include "ir/basicblock.h"
+#include "ir/Value/instruction.h"
 #include <iostream>
 namespace IR
 {
@@ -26,14 +28,19 @@ namespace IR
     void Module::gen(std::ostream &os)
     {
         os << "module " << name << std::endl;
-        // for (auto &[name, builtinFunctions] : builtinFunctions)
-        // {
-        //     builtinFunctions->emitIR(os);
-        // }
+
+
         for (auto &global : globalVariableList)
         {
             global->emitIR(os);
         }
+        if (hasGlobalInit()) {
+        os << "global.init:" << std::endl;
+        auto instructions = globalInitBlock->getVectorInstructions();
+        for (auto &inst : instructions) {
+            inst->emitIR(os);
+        }
+    }
         for (auto &function : functionList)
         {
             function->emitIR(os);

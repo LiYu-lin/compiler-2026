@@ -23,30 +23,42 @@
 #include <stack>
 namespace frontend::visitor {
 
-
-enum class FuncType { Void, Int, Float };
+using FuncType = ast::ASTNode::FuncType;
 
 struct SymbolInfo {
     std::string name;
-    bool isConst;          
-    bool isFunction;       
-    ast::ASTNode::BType baseType;        
-    FuncType funcType;     
-    std::vector<int> dims; 
-    int scopeLevel;        
-    IR::Value* value = nullptr; 
-    SymbolInfo() = default;
-    
-    SymbolInfo(std::string name, ast::ASTNode::BType type, bool isConst, int scopeLevel)
-        : name(name), isConst(isConst), isFunction(false),
-          baseType(type), scopeLevel(scopeLevel) {}
+    ast::ASTNode::BType baseType;
+    FuncType funcType;
+    bool isConst;
+    bool isArray;
+    int scopeLevel;
+    std::vector<int> dims;
+    IR::Value* value;
 
+    // 添加默认构造函数
+    SymbolInfo() 
+        : name(""), 
+          baseType(ast::ASTNode::BType::Int),
+          funcType(FuncType::Void),
+          isConst(false),
+          isArray(false),
+          scopeLevel(0),
+          value(nullptr) {}
+    bool isFunction = false;
+    // 保持原有构造函数不变
+    SymbolInfo(std::string name, ast::ASTNode::BType type, bool isConst, int scopeLevel)
+        : name(name), baseType(type), isConst(isConst), scopeLevel(scopeLevel), 
+          isArray(false), funcType(FuncType::Void), value(nullptr) {}
+
+
+    
     SymbolInfo(std::string name, FuncType type, int scopeLevel)
-        : name(name),funcType(type),
-          scopeLevel(scopeLevel) {
-            isFunction= true;
-          }
+        : name(name), funcType(type), scopeLevel(scopeLevel),
+          baseType(ast::ASTNode::BType::Int), isConst(false), 
+          isArray(false), value(nullptr), isFunction(true) {}
 };
+
+// 然后保持insert函数中的isFunction判断不变
 
 class SymbolTable {
     std::vector<std::unordered_map<std::string, SymbolInfo>> scopes;
@@ -146,7 +158,8 @@ class Visitor {
 
     IR::pType getTypeFromBType(ast::ASTNode::BType btype);
     ast::ASTNode::BType getBTypeFromAST(ast::ASTNode::BType btype);
-    
+    IR::pType getTypeFromfuncType(const FuncType &funcType);
+
     IR::Value* visit(const ast::ASTNode &node);
     IR::Value* visit(const ast::CompUnit &node);
     IR::Value* visit(const ast::Decl &node);

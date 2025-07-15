@@ -10,7 +10,7 @@ namespace IR
         std::vector<Function *> functionList;
         std::map<std::string, Function *> builtinFunctions;
         std::string name;
-
+        BasicBlock* globalInitBlock = nullptr;
         Module(std::string name);
 
         void addGlobal(GlobalValue *global)
@@ -20,7 +20,9 @@ namespace IR
             else if (global->isFunction())
                 functionList.push_back(static_cast<Function *>(global));
         }
-
+        void addGlobalInitBlock(BasicBlock* bb) {
+            globalInitBlock = bb;
+        }
         std::vector<GlobalVariable *> getGlobalVariableList()
         {
             return globalVariableList;
@@ -30,7 +32,9 @@ namespace IR
         {
             return functionList;
         }
-
+        bool hasGlobalInit() const {
+            return globalInitBlock != nullptr;
+        }
         void gen(std::ostream &os);
 
         void emitUse(std::ostream &os);

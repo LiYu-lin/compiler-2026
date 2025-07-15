@@ -1,5 +1,5 @@
 #include "ir/IRBuilder.h"
-
+#include "ir/value.h"
 #define HANDLE_BINARY_CREATE(OPT, TYPE)                                              \
     Value *IRBuilder::Create##OPT(Value *lhs, Value *rhs, const char *c)             \
     {                                                                                \
@@ -139,7 +139,13 @@ namespace IR
     HANDLE_CMP_CREATE(Ne, Int32, ICmp)
     HANDLE_CMP_CREATE(Lt, Int32, ICmp)
     HANDLE_CMP_CREATE(Le, Int32, ICmp)
-    HANDLE_CMP_CREATE(Gt, Int32, ICmp)
+Value* IRBuilder::CreateGt(Value* lhs, Value* rhs, const char* c) {
+    assert(lhs->getType()->isInt32Ty() && rhs->getType()->isInt32Ty());
+    Value* value;
+    if ((value = folder->FoldGtInt32(lhs, rhs)) != nullptr)
+        return value;
+    return InsertBack(ICmpInstruction::createICmpGt(lhs, rhs));
+}
     HANDLE_CMP_CREATE(Ge, Int32, ICmp)
 
     HANDLE_CMP_CREATE(FEq, Float, FCmp)

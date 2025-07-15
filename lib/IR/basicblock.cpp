@@ -62,9 +62,24 @@ namespace IR
     {
         os << getIRName() << "(" + std::to_string(instructions.getSize()) + "):" << std::endl;
 
-        for (ListNode *i = instructions.getHead(); i != instructions.getTail(); i = i->getNext())
-        {
+        // 添加链表完整性检查
+        if (!instructions.getHead() || !instructions.getTail()) {
+            std::cerr << "Error: Invalid instruction list in BasicBlock " << getIRName() << std::endl;
+            return;
+        }
+
+        for (ListNode *i = instructions.getHead(); i != instructions.getTail(); i = i->getNext()) {
+            if (!i) {  // 检查当前节点是否有效
+                std::cerr << "Warning: Null ListNode encountered" << std::endl;
+                continue;
+            }
+            
             Instruction *idx = static_cast<Instruction *>(i);
+            if (!idx) {  // 检查转换后的Instruction是否有效
+                std::cerr << "Warning: Invalid Instruction pointer" << std::endl;
+                continue;
+            }
+            
             os << '\t';
             idx->emitIR(os);
         }
