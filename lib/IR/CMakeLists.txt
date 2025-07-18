@@ -9,3 +9,4 @@ add_library_source(
 )
 add_subdirectory(Value)
 add_subdirectory(GenIR)
+add_subdirectory(utils)

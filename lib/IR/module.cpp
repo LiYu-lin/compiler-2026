@@ -29,7 +29,10 @@ namespace IR
     {
         os << "module " << name << std::endl;
 
-
+        if(globalVariableList.empty())
+        {
+            std::cout<<"globalv is empty:"<<std::endl;
+        }
         for (auto &global : globalVariableList)
         {
             global->emitIR(os);
@@ -39,7 +42,7 @@ namespace IR
         auto instructions = globalInitBlock->getVectorInstructions();
         for (auto &inst : instructions) {
             inst->emitIR(os);
-        }
+            }
     }
         for (auto &function : functionList)
         {

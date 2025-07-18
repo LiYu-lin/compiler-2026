@@ -2,6 +2,7 @@
 #include "ir/type.h"
 #include "ir/basicblock.h"
 #include "ir/Value/instruction.h"
+#include <iostream>
 namespace IR
 {
     Function::Function(pType retType, std::string name)
@@ -24,7 +25,7 @@ namespace IR
     std::vector<BasicBlock *> Function::getVectorBlocks()
     {
         std::vector<BasicBlock *> blocks;
-        for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
         {
             blocks.push_back(static_cast<BasicBlock *>(i));
         }
@@ -33,7 +34,7 @@ namespace IR
 
     void Function::waste()
     {
-        for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
         {
             BasicBlock *idx = static_cast<BasicBlock *>(i);
             idx->waste();
@@ -43,13 +44,15 @@ namespace IR
     void Function::emitIR(std::ostream &os)
     {
         os << "define " << type->getTypeName() << " " << getIRName() << " {\n";
-        for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
-        {
-            BasicBlock *BB = static_cast<BasicBlock *>(i);
-            if (!BB) { 
-            std::cerr << "Warning: Null BasicBlock encountered" << std::endl;
-            continue;
-        }
+        auto blocks = getVectorBlocks();
+        for (BasicBlock* BB : blocks) {
+            if (!BB) {
+                std::cerr << "Warning: Null BasicBlock encountered in function " 
+                        << getIRName() << std::endl;
+                continue;
+            }
+            
+            std::cout << "Emitting BasicBlock: " << BB->getIRName() << std::endl;
             BB->emitIR(os);
         }
         os << "}\n";
@@ -57,10 +60,9 @@ namespace IR
 
     void Function::addBlock(BasicBlock *block, bool entry)
     {
-        // 更新尾节点的 susccsor, （不需要了）
         block->parent = this;
-        funBlocks.PushBack(block);
-        if (funBlocks.getHead() == block)
+        funBlocks.pushBack(block);
+        if (funBlocks.begin() == block)
             entryBlock = block;
         if (entry)
             entryBlock = block;
@@ -83,12 +85,12 @@ namespace IR
     void Function::emitUse(std::ostream &os)
     {
         os << getIRName() << " used by:" << std::endl;
-        for (ListNode *i = useList.getHead(); i != useList.getTail(); i = i->getNext())
+        for (ListNode *i = useList.begin(); i != useList.back(); i = i->nextNode())
         {
             Use *use = static_cast<Use *>(i);
             os << '\t' << use->val->getIRName() << std::endl;
         }
-        for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
         {
             BasicBlock *idx = static_cast<BasicBlock *>(i);
             idx->emitUse(os);
@@ -100,7 +102,7 @@ namespace IR
         std::map<BasicBlock *, std::set<BasicBlock *>> cfg;
         if (isBuiltinFunction())
             return cfg;
-        for (ListNode *i = funBlocks.getHead(); i != funBlocks.getTail(); i = i->getNext())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
         {
             BasicBlock *BB = static_cast<BasicBlock *>(i);
             auto succs = BB->getSuccBlock();
@@ -114,34 +116,34 @@ namespace IR
 
     void Function::mergeBlock(BasicBlock *prev, BasicBlock *nxt)
     {
-        assert(BasicBlock::checkNeignbour(prev, nxt));
+        assert(BasicBlock::checkNeighbour(prev, nxt));
 
         nxt->replaceAllUsageTo(prev);
         // 更新 prev 的指令
-        for (ListNode *i = nxt->getInstruction().getHead(); i != nxt->getInstruction().getTail();)
+        for (ListNode *i = nxt->getInstruction().begin(); i != nxt->getInstruction().back();)
         {
             Instruction *instr = static_cast<Instruction *>(i);
-            i = i->getNext();
+            i = i->nextNode();
             nxt->getInstruction().remove(instr);
             prev->InsertInstructionBack(instr);
         }
-        assert(nxt->instructions.isEmpty());
+        assert(nxt->instructions.empty());
         nxt->waste();
     }
 
     BasicBlock *Function::splitBlock(BasicBlock *block, Instruction *pos)
     {
-        for (ListNode *i = block->getInstruction().getHead(); i != block->getInstruction().getTail(); i = i->getNext())
+        for (ListNode *i = block->getInstruction().begin(); i != block->getInstruction().back(); i = i->nextNode())
         {
             Instruction *idx = static_cast<Instruction *>(i);
             if (idx == pos)
             {
                 BasicBlock *newBlock = new BasicBlock("split");
                 insertBlock(newBlock, block);
-                for (ListNode *i = pos->getNext(); i != block->getInstruction().getTail();)
+                for (ListNode *i = pos->nextNode(); i != block->getInstruction().back();)
                 {
                     Instruction *instr = static_cast<Instruction *>(i);
-                    i = i->getNext();
+                    i = i->nextNode();
                     block->getInstruction().remove(instr);
                     newBlock->InsertInstructionBack(instr);
                 }
@@ -180,7 +182,7 @@ namespace IR
 
     void GlobalVariable::emitIR(std::ostream &os)
     {
-        os << "define global " << type->getBase()->getTypeName()
+        os << "define global " << getTypeName()
            << " " << getIRName() << std::endl;
     }
 }

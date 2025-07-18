@@ -118,6 +118,7 @@ namespace IR {
     StoreInstruction::StoreInstruction(Value *lhs, Value *dest) : Instruction(Type ::getVoidType(), MemoryOp::Store)
     {
         setTotalUsers();
+        std::cout<<"lhs,dest:"<<std::endl;
         if (!checkType(lhs->getType(), dest->getType()->getBase()))
         {
             Error::Error(__PRETTY_FUNCTION__, "Binary operands must have the same type");
@@ -443,7 +444,7 @@ namespace IR {
         }
     }
 
-    void Instruction::remove() {
+    void Instruction::removeNode() {
         // 从BB中的instructionList中移除
         if (prev != nullptr)
         {
@@ -462,7 +463,7 @@ namespace IR {
         parent->getInstruction().remove(this);
 
         // 移除所有被使用的位置
-        for (ListNode* i = useList.getHead(); i != useList.getTail(); i = i->getNext())
+        for (ListNode* i = useList.begin(); i != useList.end(); i = i->nextNode())
         {
             Use* use = static_cast<Use*>(i);
             use->val->useList.remove(use);
@@ -496,7 +497,7 @@ namespace IR {
         case InderectBr:
             return false;
         default:
-            return useList.isEmpty();
+            return useList.empty();
         }
     }
 

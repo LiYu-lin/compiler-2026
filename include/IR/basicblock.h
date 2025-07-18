@@ -61,6 +61,7 @@ namespace IR
             return instructions;
         }
 
+
         std::vector<Instruction *> getVectorInstructions();
 
         static BasicBlock *get()
@@ -70,7 +71,7 @@ namespace IR
 
         static BasicBlock *get(std::string name);
 
-        static bool checkNeignbour(BasicBlock *a, BasicBlock *b);
+        static bool checkNeighbour(BasicBlock *a, BasicBlock *b);
 
         bool isReturnBlock();
 

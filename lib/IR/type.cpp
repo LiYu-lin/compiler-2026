@@ -49,6 +49,10 @@ pType Type::getArrayBase() const {
 pType Type::getBase() const {
     if (isPointerTy()) return getPointerBase();
     if (isArrayTy()) return getArrayBase();
+    if(isInt32Ty())return getI32Type();
+    if(isFloatTy())return getFloatType();
+    if(isLabelTy())return getLabelType();
+    if(isVoidTy())return getVoidType();
     return nullptr;
 }
 

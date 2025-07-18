@@ -1,54 +1,46 @@
 #pragma once
 #include "listnode.h"
 
-namespace IR {
+namespace IR
+{
     template <typename T>
-    class List {
-    public:
-        int sz =0; // size of the list
-        List() {
+    struct List
+    {
+        ListNode *headEmptyNode;
+        ListNode *tailEmptyNode;
+        int sz = 0;
+
+        List()
+        {
             sz = 0;
-            head = new ListNode(0); 
-            tail = new ListNode(0);
-            tail->prev = head;
-            head->next = tail;
+            headEmptyNode = new ListNode(0);
+            tailEmptyNode = new ListNode(0);
+            tailEmptyNode->prev = headEmptyNode;
+            headEmptyNode->next = tailEmptyNode;
         }
 
-        bool isEmpty() const {
-            return head->getNext() == tail;
-        }
-        ListNode* getHead() const {
-            return head->getNext();
-        }
-        ListNode* getTail() const {
-            return tail->getPrev();
-        }
-        void insertAfter(ListNode* newNode, T node) {
-            node->insertAfter(newNode);
-            sz++;
-        }
-        void insertBefore(ListNode* newNode, T node) {
-            node->insertBefore(newNode);
-            sz++;
-        }
-        void PushBack(T node) {
-            if (node == nullptr || node->id == 0) return;
-            insertBefore(tail, node);
-        }
-        void PushFront(T node) {
-            if (node == nullptr || node->id == 0) return;
-            insertAfter(head, node);
-        }
-        void remove(T node) {
-            if (node == nullptr || node->id == 0) return;
-            node->remove();
-            sz--;
-        }
-        int getSize() const {
-            return sz;
-        }
-    private:
-        ListNode* head;
-        ListNode* tail;
+        int size();
+
+        bool empty() { return headEmptyNode->next == tailEmptyNode; }
+
+        ListNode *begin() { return headEmptyNode->nextNode(); }
+
+        ListNode *back() { return tailEmptyNode->prevNode(); }
+
+        ListNode *end() { return tailEmptyNode; }
+
+        ListNode *rbegin() { return tailEmptyNode->prevNode(); }
+
+        ListNode *rend() { return headEmptyNode; }
+
+        void insertAfter(ListNode *who, T node);
+
+        void insertBefore(ListNode *who, T node);
+
+        void pushBack(T node);
+
+        void pushFront(T node);
+
+        void remove(T node);
     };
 }

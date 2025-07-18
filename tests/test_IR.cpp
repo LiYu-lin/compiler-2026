@@ -8,13 +8,28 @@
 
 using namespace frontend::parser;
 
+// std::string code = R"(
+// const int b=10;
+// int main() {
+//     int a = 2;
+//     if(a>1){
+//         int c = 3;
+//     }
+//     return 0;
+// }
+// )";
+
 std::string code = R"(
-const int b=10;
 int main() {
-    int a = 2;
-    if(a>1){
-        int c = 3;
-    }
+    int a = 5;
+    if (a >= 10 && a < 20) {
+        a = a + 1;
+    } else {
+        a = a - 1;
+    };
+
+    int i = 0;
+    
     return 0;
 }
 )";
@@ -65,7 +80,7 @@ int main() {
         // 简单验证main函数是否存在
         bool hasMain = false;
         for (auto func : mod.getFunctionList()) {
-            if (func->getIRName() == "main") {
+            if (func->getIRName() == "@main") {
                 hasMain = true;
                 break;
             }

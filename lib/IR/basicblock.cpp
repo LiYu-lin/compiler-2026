@@ -9,16 +9,16 @@ namespace IR
     void BasicBlock::waste()
     {
         parent->blocks().remove(this);
-        ListNode *idx = instructions.getHead();
-        while (idx != instructions.getTail())
+        ListNode *idx = instructions.begin();
+        while (idx != instructions.end())
         {
-            ListNode *nextInstr = idx->getNext();
+            ListNode *nextInstr = idx->nextNode();
             static_cast<Instruction *>(idx)->waste();
             idx = nextInstr;
         }
 
         // 移除所有被使用的位置
-        for (ListNode *i = useList.getHead(); i != useList.getTail(); i = i->getNext())
+        for (ListNode *i = useList.begin(); i != useList.end(); i = i->nextNode())
         {
             Use *use = static_cast<Use *>(i);
             use->val->useList.remove(use);
@@ -33,7 +33,7 @@ namespace IR
     std::vector<Instruction *> BasicBlock::getVectorInstructions()
     {
         std::vector<Instruction *> instrs;
-        for (ListNode *i = instructions.getHead(); i != instructions.getTail(); i = i->getNext())
+        for (ListNode *i = instructions.begin(); i != instructions.end(); i = i->nextNode())
         {
             instrs.push_back(static_cast<Instruction *>(i));
         }
@@ -43,13 +43,13 @@ namespace IR
     void BasicBlock::InsertInstructionBack(Instruction *instr)
     {
         instr->parent = this;
-        instructions.PushBack(instr);
+        instructions.pushBack(instr);
     }
 
     void BasicBlock::InsertInstructionFront(Instruction *instr)
     {
         instr->parent = this;
-        instructions.PushFront(instr);
+        instructions.pushFront(instr);
     }
 
     void BasicBlock::InsertInstruction(Instruction *instr, Instruction *who)
@@ -60,15 +60,15 @@ namespace IR
 
     void BasicBlock::emitIR(std::ostream &os)
     {
-        os << getIRName() << "(" + std::to_string(instructions.getSize()) + "):" << std::endl;
+        os << getIRName() << "(" + std::to_string(instructions.size()) + "):" << std::endl;
 
         // 添加链表完整性检查
-        if (!instructions.getHead() || !instructions.getTail()) {
+        if (!instructions.begin() || !instructions.end()) {
             std::cerr << "Error: Invalid instruction list in BasicBlock " << getIRName() << std::endl;
             return;
         }
 
-        for (ListNode *i = instructions.getHead(); i != instructions.getTail(); i = i->getNext()) {
+        for (ListNode *i = instructions.begin(); i != instructions.end(); i = i->nextNode()) {
             if (!i) {  // 检查当前节点是否有效
                 std::cerr << "Warning: Null ListNode encountered" << std::endl;
                 continue;
@@ -87,7 +87,7 @@ namespace IR
 
     void BasicBlock::emitUse(std::ostream &os)
     {
-        for (ListNode *i = instructions.getHead(); i != instructions.getTail(); i = i->getNext())
+        for (ListNode *i = instructions.begin(); i != instructions.end(); i = i->nextNode())
         {
             Instruction *idx = static_cast<Instruction *>(i);
             idx->emitUse(os);
@@ -100,7 +100,7 @@ namespace IR
         // 如果不是跳转指令，那么后继节点就是下一个基本块
         if (!isReturnBlock() && !isCondBrBlock() && !isDirectBrBlock())
         {
-            ListNode *nxt = getNext();
+            ListNode *nxt = nextNode();
             if (nxt && nxt->id != 0)
             {
                 auto temp = static_cast<BasicBlock *>(nxt);
@@ -114,14 +114,14 @@ namespace IR
         else if (isCondBrBlock())
         {
             // 如果是条件跳转块，那么后继是条件跳转的两个块
-            auto instr = static_cast<BranchInstruction *>(instructions.getTail());
+            auto instr = static_cast<BranchInstruction *>(instructions.back());
             res.insert(instr->getTrueBlock());
             res.insert(instr->getFalseBlock());
         }
         else if (isDirectBrBlock())
         {
             // 如果是无条件跳转块，那么后继是无条件跳转的块
-            auto instr = static_cast<BranchInstruction *>(instructions.getTail());
+            auto instr = static_cast<BranchInstruction *>(instructions.back());
             res.insert(instr->getUnconditionalBlock());
         }
         return res;
@@ -144,7 +144,7 @@ namespace IR
             }
         }
 
-        ListNode *prev = getPrev();
+        ListNode *prev = prevNode();
         if (prev && prev->id != 0)
         {
             BasicBlock *prevBB = static_cast<BasicBlock *>(prev);
@@ -156,15 +156,15 @@ namespace IR
         return res;
     }
 
-    bool BasicBlock::checkNeignbour(BasicBlock *a, BasicBlock *b)
+    bool BasicBlock::checkNeighbour(BasicBlock *a, BasicBlock *b)
     {
-        if (a->getNext() != b)
+        if (a->nextNode() != b)
             return false;
         if (a->isCondBrBlock() || a->isDirectBrBlock() || a->isReturnBlock())
             return false;
-        if (!b->getInstruction().isEmpty())
+        if (!b->getInstruction().empty())
         {
-            auto first = b->getInstruction().getHead();
+            auto first = b->getInstruction().begin();
             if (static_cast<Instruction *>(first)->getOpcode() == Instruction::Phi)
                 return false;
         }
@@ -177,16 +177,16 @@ namespace IR
 
     bool BasicBlock::isReturnBlock()
     {
-        ListNode *last = instructions.getTail();
-        if (last == instructions.getTail())
+        ListNode *last = instructions.back();
+        if (last == instructions.back())
             return false;
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::Return;
     }
 
     bool BasicBlock::isCondBrBlock()
     {
-        ListNode *last = instructions.getTail();
-        if (last == instructions.getHead())
+        ListNode *last = instructions.back();
+        if (last == instructions.begin())
             return false;
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::BR &&
                static_cast<BranchInstruction *>(last)->isConditional();
@@ -194,8 +194,8 @@ namespace IR
 
     bool BasicBlock::isDirectBrBlock()
     {
-        ListNode *last = instructions.getTail();
-        if (last == instructions.getHead())
+        ListNode *last = instructions.back();
+        if (last == instructions.begin())
             return false;
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::BR &&
                static_cast<BranchInstruction *>(last)->isUnconditional();

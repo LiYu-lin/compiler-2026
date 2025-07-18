@@ -166,7 +166,7 @@ namespace IR
 
     private:
         friend struct List<Instruction *>;
-        void remove() override;
+        void removeNode() override;
     };
 
         struct BinaryInstruction : public Instruction

@@ -62,7 +62,7 @@ IR::Value* Visitor::visit(const ast::CompUnit &node) {
         std::cout << "Visiting declaration: "<< std::endl;
         decl->accept(*this);
     }
-    if (!globalInitBB->isEmpty()) {
+    if (globalInitBB->getVectorInstructions().size() > 0) {
         module.addGlobalInitBlock(globalInitBB);
     } else {
         delete globalInitBB;
@@ -116,30 +116,39 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
         }
         constType = IR::ArrayType::getArrayType(dimValues.size(), constType);
     }
-    std::cout << "Debug: Creating alloca for " << node.ident << std::endl;
-    std::cout << "Type: " << constType->to_string() << std::endl;
-    std::cout << "Current BB: " << (builder.GetInsertBlock() ? builder.GetInsertBlock()->getIRName() : "null") << std::endl;
 
-    auto alloca = builder.CreateAlloca(constType, node.ident,true);
-
-    std::cout << "Created alloca for const: " << node.ident << std::endl;
-    if (node.constInitVal) {
-        std::cout << "ConstDef has init value, processing it." << std::endl;
-        auto initVal = node.constInitVal->accept(*this);
-        builder.CreateStore(initVal, alloca);
+    IR::Value* constValue = nullptr;
+    if (!currentFunction) {  // 全局常量处理
+        IR::Constant* initVal = nullptr;
+        if (node.constInitVal) {
+            auto val = node.constInitVal->accept(*this);
+            initVal = dynamic_cast<IR::Constant*>(val);
+            if (!initVal) {
+                std::cerr << "Error: Global const must be initialized with constant" << std::endl;
+                return undefinedValue;
+            }
+        }
+        constValue = new IR::GlobalVariable(constType, node.ident, initVal, true); // true表示是常量
+        module.addGlobal(static_cast<IR::GlobalVariable*>(constValue));
+    } else {  // 局部常量处理
+        constValue = builder.CreateAlloca(constType, node.ident, true);
+        if (node.constInitVal) {
+            auto initVal = node.constInitVal->accept(*this);
+            builder.CreateStore(initVal, constValue);
+        }
     }
 
     // 设置符号表信息
     SymbolInfo info(node.ident, currentBType, true, symbolTable.getCurrentScopeLevel());
     info.isArray = !node.dimensions.empty();
     info.dims = dimValues;
-    info.value = alloca;
+    info.value = constValue;
     
     if (!symbolTable.insert(node.ident, info)) {
         std::cerr << "Error: Failed to insert constant '" << node.ident << "' into symbol table" << std::endl;
     }
     
-    return alloca;
+    return constValue;
 }
 
 IR::Value* Visitor::visit(const ast::ConstInitVal& node) {
@@ -266,6 +275,7 @@ IR::Value* Visitor::visit(const ast::FuncDef &node) {
     
     symbolTable.enterScope();
     auto entryBB = new IR::BasicBlock("entry");
+    currentFunction->addBlock(entryBB,true);
     builder.SetInsertPoint(entryBB);
     
     if (node.funcFParams) {
@@ -375,6 +385,12 @@ IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
     auto falseBB = new IR::BasicBlock("if.false");
     auto mergeBB = new IR::BasicBlock("if.merge");
 
+    if (currentFunction) {
+        currentFunction->addBlock(trueBB);
+        currentFunction->addBlock(falseBB);
+        currentFunction->addBlock(mergeBB);
+    }
+
     auto condBr = builder.CreateCondBr(cond, trueBB, falseBB);
     
     builder.SetInsertPoint(trueBB);
@@ -395,6 +411,12 @@ IR::Value* Visitor::visit(const ast::Stmt::WhileStmt &node) {
     loop_info loop;
     loop.continue_b = new IR::BasicBlock("continue");
     loop.break_b = new IR::BasicBlock("break");
+
+    if (currentFunction) {
+        currentFunction->addBlock(loop.continue_b);
+        currentFunction->addBlock(loop.break_b);
+    }   
+
     loopStack.push(loop);
     
     auto cond = node.cond->accept(*this);
