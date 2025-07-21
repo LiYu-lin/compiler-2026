@@ -45,16 +45,16 @@ namespace IR
     {
         os << "define " << type->getTypeName() << " " << getIRName() << " {\n";
         auto blocks = getVectorBlocks();
-        for (BasicBlock* BB : blocks) {
-            if (!BB) {
-                std::cerr << "Warning: Null BasicBlock encountered in function " 
-                        << getIRName() << std::endl;
-                continue;
-            }
-            
-            std::cout << "Emitting BasicBlock: " << BB->getIRName() << std::endl;
-            BB->emitIR(os);
+    for (ListNode* i = funBlocks.begin(); i != funBlocks.end(); i = i->nextNode()) {
+        BasicBlock* BB = static_cast<BasicBlock*>(i);
+        if (!BB) {
+            std::cerr << "Warning: Null BasicBlock encountered in function " 
+                    << getIRName() << std::endl;
+            continue;
         }
+        
+        BB->emitIR(os);
+    }
         os << "}\n";
     }
 
@@ -62,10 +62,14 @@ namespace IR
     {
         block->parent = this;
         funBlocks.pushBack(block);
-        if (funBlocks.begin() == block)
+        if (funBlocks.begin() == block){
             entryBlock = block;
-        if (entry)
+        }
+
+        if (entry){
             entryBlock = block;
+        }
+            
     }
 
     void Function::insertBlock(BasicBlock *block, BasicBlock *prev)

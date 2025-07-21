@@ -29,6 +29,11 @@ int main() {
     };
 
     int i = 0;
+    int b = a;
+    while (i < 10) {
+        b = b + 1;
+        i = i + 1;
+    }
     
     return 0;
 }

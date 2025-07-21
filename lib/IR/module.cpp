@@ -31,7 +31,7 @@ namespace IR
 
         if(globalVariableList.empty())
         {
-            std::cout<<"globalv is empty:"<<std::endl;
+            std::cout<<"globalVariable is empty:"<<std::endl;
         }
         for (auto &global : globalVariableList)
         {
@@ -43,7 +43,7 @@ namespace IR
         for (auto &inst : instructions) {
             inst->emitIR(os);
             }
-    }
+        }
         for (auto &function : functionList)
         {
             function->emitIR(os);

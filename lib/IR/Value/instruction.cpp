@@ -118,7 +118,6 @@ namespace IR {
     StoreInstruction::StoreInstruction(Value *lhs, Value *dest) : Instruction(Type ::getVoidType(), MemoryOp::Store)
     {
         setTotalUsers();
-        std::cout<<"lhs,dest:"<<std::endl;
         if (!checkType(lhs->getType(), dest->getType()->getBase()))
         {
             Error::Error(__PRETTY_FUNCTION__, "Binary operands must have the same type");
