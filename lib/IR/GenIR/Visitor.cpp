@@ -44,6 +44,115 @@ IR::Value* Visitor::visit(const ast::ASTNode &node) {
     return const_cast<ast::ASTNode&>(node).accept(*this);
 }
 
+IR::Value* Visitor::getLValPointer(const ast::LVal &node) {
+    auto symbol = symbolTable.lookup(node.ident);
+    if (!symbol) {
+        std::cerr << "Error: Undefined variable '" << node.ident << "'" << std::endl;
+        return undefinedValue;
+    }
+
+    IR::Value *varPtr = symbol->value;
+    IR::pType varType = getTypeFromBType(symbol->baseType);
+
+    if (!node.dimensions.empty()) {
+        if (!symbol->isArray) {
+            std::cerr << "Error: '" << node.ident << "' is not an array" << std::endl;
+            return undefinedValue;
+        }
+        std::vector<IR::Value*> indices;
+        indices.push_back(IR::ConstantInt32::get(0));
+        for (const auto& dim : node.dimensions) {
+            indices.push_back(dim->accept(*this));
+        }
+        varPtr = builder.CreateGEP(varType, varPtr, indices);
+    }
+
+    return varPtr;
+}
+
+IR::Value* Visitor::coerceToBoolValue(IR::Value *value) {
+    if (!value) {
+        return undefinedValue;
+    }
+
+    if (value->isInstruction()) {
+        auto *inst = static_cast<IR::Instruction *>(value);
+        auto opcode = inst->getOpcode();
+        if (opcode >= IR::Instruction::CmpBegin &&
+            opcode < IR::Instruction::CmpEnd) {
+            return value;
+        }
+    }
+
+    if (value->getType()->isFloatTy()) {
+        return builder.CreateFNe(value, IR::ConstantFloat::get(0.0f));
+    }
+
+    if (value->getType()->isInt32Ty()) {
+        return builder.CreateNe(value, IR::ConstantInt32::get(0));
+    }
+
+    return value;
+}
+
+bool Visitor::currentBlockHasTerminator() const {
+    auto *block = builder.BB;
+    if (!block) {
+        return false;
+    }
+
+    auto instructions = block->getVectorInstructions();
+    if (instructions.empty()) {
+        return false;
+    }
+
+    auto *last = instructions.back();
+    return last->getOpcode() == IR::Instruction::BR ||
+           last->getOpcode() == IR::Instruction::Return;
+}
+
+void Visitor::emitConditionalBranch(const ast::ASTNode &node, IR::BasicBlock *trueBB, IR::BasicBlock *falseBB) {
+    if (auto cond = dynamic_cast<const ast::Cond*>(&node)) {
+        emitConditionalBranch(*cond->lOrExp, trueBB, falseBB);
+        return;
+    }
+
+    if (auto lor = dynamic_cast<const ast::LOrExp*>(&node)) {
+        emitConditionalBranch(*lor->lOrExp, trueBB, falseBB);
+        return;
+    }
+
+    if (auto lorOp = dynamic_cast<const ast::LOrExp::LOrExpOp*>(&node)) {
+        auto rhsBB = new IR::BasicBlock("lor.rhs");
+        if (currentFunction) {
+            currentFunction->addBlock(rhsBB);
+        }
+        emitConditionalBranch(*lorOp->lOrExp, trueBB, rhsBB);
+        builder.SetInsertPoint(rhsBB);
+        emitConditionalBranch(*lorOp->lAndExp, trueBB, falseBB);
+        return;
+    }
+
+    if (auto land = dynamic_cast<const ast::LAndExp*>(&node)) {
+        emitConditionalBranch(*land->lAndExp, trueBB, falseBB);
+        return;
+    }
+
+    if (auto landOp = dynamic_cast<const ast::LAndExp::LAndExpOp*>(&node)) {
+        auto rhsBB = new IR::BasicBlock("land.rhs");
+        if (currentFunction) {
+            currentFunction->addBlock(rhsBB);
+        }
+        emitConditionalBranch(*landOp->lAndExp, rhsBB, falseBB);
+        builder.SetInsertPoint(rhsBB);
+        emitConditionalBranch(*landOp->eqExp, trueBB, falseBB);
+        return;
+    }
+
+    auto condValue = coerceToBoolValue(visit(node));
+    builder.CreateCondBr(condValue, trueBB, falseBB);
+}
+
 IR::Value* Visitor::visit(const ast::CompUnit &node) {
     auto globalInitBB = new IR::BasicBlock("global.init");
     builder.SetInsertPoint(globalInitBB);
@@ -252,6 +361,7 @@ IR::Value* Visitor::visit(const ast::FuncDef &node) {
     symbolTable.insert(node.ident, funcInfo);
     
     symbolTable.enterScope();
+    currentParamIndex = 0;
     auto entryBB = new IR::BasicBlock("entry");
     currentFunction->addBlock(entryBB);
     builder.SetInsertPoint(entryBB);
@@ -275,14 +385,28 @@ IR::Value* Visitor::visit(const ast::FuncFParams& node) {
 }
 
 IR::Value* Visitor::visit(const ast::FuncFParam& node) {
-
     IR::pType paramType = getTypeFromBType(node.btype);
     
     if (node.dimensions && !node.dimensions->empty()) {
         paramType = IR::ArrayType::getArrayType(node.dimensions->size(), paramType);
     }
-    
-    auto alloca = builder.CreateAlloca(paramType, node.ident);
+
+    if (!currentFunction || currentParamIndex >= static_cast<size_t>(currentFunction->getArgCount())) {
+        std::cerr << "Error: parameter lowering out of sync for '" << node.ident << "'" << std::endl;
+        return undefinedValue;
+    }
+
+    auto *argValue = currentFunction->getArg(static_cast<unsigned int>(currentParamIndex++));
+    auto *alloca = builder.CreateAlloca(paramType, node.ident);
+    builder.CreateStore(argValue, alloca);
+
+    SymbolInfo info(node.ident, node.btype, false, symbolTable.getCurrentScopeLevel());
+    info.isArray = node.dimensions && !node.dimensions->empty();
+    info.value = alloca;
+    if (!symbolTable.insert(node.ident, info)) {
+        std::cerr << "Error: Redefinition of parameter '" << node.ident << "'" << std::endl;
+    }
+
     return alloca;
 }
 
@@ -304,7 +428,12 @@ IR::Value* Visitor::visit(const ast::Stmt &node) {
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::AssignStmt& node) {
-    auto lval = node.lval->accept(*this);
+    auto lvalNode = dynamic_cast<ast::LVal*>(node.lval.get());
+    if (!lvalNode) {
+        std::cerr << "Error: left-hand side of assignment is not an lvalue" << std::endl;
+        return undefinedValue;
+    }
+    auto lval = getLValPointer(*lvalNode);
     auto exp = node.exp->accept(*this);
     builder.CreateStore(exp, lval);
     return exp;
@@ -349,7 +478,6 @@ IR::Value* Visitor::visit(const ast::Stmt::ReturnStmt& node) {
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
-    auto cond = node.exp->accept(*this);
     auto trueBB = new IR::BasicBlock("if.true");
     auto falseBB = new IR::BasicBlock("if.false"); 
     auto mergeBB = new IR::BasicBlock("if.merge");
@@ -360,12 +488,12 @@ IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
         currentFunction->addBlock(mergeBB);
     }
 
-    auto condBr = builder.CreateCondBr(cond, trueBB, falseBB);
+    emitConditionalBranch(*node.exp, trueBB, falseBB);
     
     // 处理true分支
     builder.SetInsertPoint(trueBB);
     node.block->accept(*this);
-    if (!builder.GetInsertBlock()) {
+    if (!currentBlockHasTerminator()) {
         builder.CreateBr(mergeBB);  
     }
     
@@ -373,7 +501,9 @@ IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
     if (node.elseStmt) {
         builder.SetInsertPoint(falseBB);
         (*node.elseStmt)->accept(*this);
-        builder.CreateBr(mergeBB); 
+        if (!currentBlockHasTerminator()) {
+            builder.CreateBr(mergeBB);
+        }
         
     } else {
         builder.SetInsertPoint(falseBB);
@@ -382,7 +512,7 @@ IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
     
     builder.SetInsertPoint(mergeBB);
     
-    return condBr;
+    return nullptr;
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::WhileStmt &node) {
@@ -403,22 +533,21 @@ IR::Value* Visitor::visit(const ast::Stmt::WhileStmt &node) {
     builder.CreateBr(condBB);
     
     builder.SetInsertPoint(condBB);
-    auto cond = node.cond->accept(*this);
-    builder.CreateCondBr(cond, bodyBB, loop.break_b);
+    emitConditionalBranch(*node.cond, bodyBB, loop.break_b);
 
     builder.SetInsertPoint(bodyBB);
     loopStack.push(loop);
     node.stmt->accept(*this);
     loopStack.pop();
     
-    if (builder.GetInsertBlock()) {
+    if (!currentBlockHasTerminator()) {
         builder.CreateBr(condBB);
     }
     
     builder.SetInsertPoint(loop.break_b);
 
     
-    return cond;
+    return nullptr;
 }
 
 IR::Value* Visitor::visit(const ast::Stmt::BreakStmt &node) {
@@ -444,22 +573,8 @@ IR::Value* Visitor::visit(const ast::LVal &node) {
     }
     
     // 否则正常处理变量加载
-    IR::Value *varPtr = symbol->value;
+    auto varPtr = getLValPointer(node);
     IR::pType varType = getTypeFromBType(symbol->baseType);
-
-    if (!node.dimensions.empty()) {
-        if (!symbol->isArray) {
-            std::cerr << "Error: '" << node.ident << "' is not an array" << std::endl;
-            return undefinedValue;
-        }
-        std::vector<IR::Value*> indices;
-        indices.push_back(IR::ConstantInt32::get(0)); 
-        for (const auto& dim : node.dimensions) {
-            indices.push_back(dim->accept(*this));
-        }
-        varPtr = builder.CreateGEP(varType, varPtr, indices);
-    }
-    
     return builder.CreateLoad(varType, varPtr);
 }
 
@@ -627,8 +742,8 @@ IR::Value* Visitor::visit(const ast::LAndExp &node) {
 }
 
 IR::Value* Visitor::visit(const ast::LAndExp::LAndExpOp& node) {
-    auto left = node.lAndExp->accept(*this);
-    auto right = node.eqExp->accept(*this);
+    auto left = coerceToBoolValue(node.lAndExp->accept(*this));
+    auto right = coerceToBoolValue(node.eqExp->accept(*this));
     return builder.CreateAnd(left, right);
 }
 
@@ -637,8 +752,8 @@ IR::Value* Visitor::visit(const ast::LOrExp &node) {
 }
 
 IR::Value* Visitor::visit(const ast::LOrExp::LOrExpOp& node) {
-    auto left = node.lOrExp->accept(*this);
-    auto right = node.lAndExp->accept(*this);
+    auto left = coerceToBoolValue(node.lOrExp->accept(*this));
+    auto right = coerceToBoolValue(node.lAndExp->accept(*this));
     return builder.CreateOr(left, right);
 }
 

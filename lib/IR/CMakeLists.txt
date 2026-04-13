@@ -1,10 +1,14 @@
 add_library_source(
+    DCE.cpp
     type.cpp
     value.cpp
     module.cpp
     IRBuilder.cpp
     basicblock.cpp
     constantfolder.cpp
+    Pass.cpp
+    PassManager.cpp
+    SimplifyCFG.cpp
     use.cpp
 )
 add_subdirectory(Value)

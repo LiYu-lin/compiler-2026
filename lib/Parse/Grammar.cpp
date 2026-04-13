@@ -100,6 +100,7 @@ Parser<ast::ASTNodePtr> init_val() {
         }));
 }
 
+//tuple<返回类型, 函数名, 参数列表, 函数体>
 Parser<ast::ASTNodePtr> func_def() {
     return functype
         .extend(ident.extend(

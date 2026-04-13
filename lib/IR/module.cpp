@@ -29,10 +29,6 @@ namespace IR
     {
         os << "module " << name << std::endl;
 
-        if(globalVariableList.empty())
-        {
-            std::cout<<"globalVariable is empty:"<<std::endl;
-        }
         for (auto &global : globalVariableList)
         {
             global->emitIR(os);

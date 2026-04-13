@@ -1,12 +1,13 @@
-#test_lexer
-spawn_test_target(test_lexer ${CMAKE_CURRENT_SOURCE_DIR}/test_lexer.cpp)
-add_test(NAME ${test_lexer} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_lexer})
-#test_parser1
-spawn_test_target(test_parser1 ${CMAKE_CURRENT_SOURCE_DIR}/test_parser1.cpp)
-add_test(NAME ${test_parser1} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_parser1})
-#test_parser2
-spawn_test_target(test_parser2 ${CMAKE_CURRENT_SOURCE_DIR}/test_parser2.cpp)
-add_test(NAME ${test_parser2} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_parser2})
+spawn_test_target(test_backend ${CMAKE_CURRENT_SOURCE_DIR}/test_backend.cpp)
+add_test(NAME ${test_backend} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_backend})
+get_filename_component(_toolchain_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+set_tests_properties(${test_backend} PROPERTIES
+    ENVIRONMENT "PATH=${_toolchain_bin_dir};$ENV{PATH}"
+)
 
-spawn_test_target(test_IR ${CMAKE_CURRENT_SOURCE_DIR}/test_IR.cpp)
-add_test(NAME ${test_IR} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_IR})
+spawn_test_target(test_driver ${CMAKE_CURRENT_SOURCE_DIR}/test_driver.cpp)
+target_compile_definitions(${test_driver} PRIVATE SYSY_COMPILER_PATH="$<TARGET_FILE:sysy_compiler>")
+add_test(NAME ${test_driver} COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_driver})
+set_tests_properties(${test_driver} PROPERTIES
+    ENVIRONMENT "PATH=${_toolchain_bin_dir};$ENV{PATH}"
+)

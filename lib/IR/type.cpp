@@ -177,4 +177,16 @@ pFunctionType FunctionType::getFunctionType(pType ret, std::vector<pType> &&para
     return cache[key];
 }
 
-}  // namespace IR
+  // namespace IR
+
+size_t IR::Type::size() const {
+    // 根据不同类型返回大小
+    if (isInt32Ty()) return 4;
+    if (isFloatTy()) return 4;
+    if (isArrayTy()) {
+        auto arrayType = static_cast<const ArrayType*>(this);
+        return arrayType->getArraySize() * arrayType->getElementType()->size();
+    }
+    return 0;
+} 
+}

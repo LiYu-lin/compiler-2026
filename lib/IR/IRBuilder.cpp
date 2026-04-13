@@ -155,15 +155,15 @@ Value* IRBuilder::CreateGt(Value* lhs, Value* rhs, const char* c) {
     HANDLE_CMP_CREATE(FGt, Float, FCmp)
     HANDLE_CMP_CREATE(FGe, Float, FCmp)
 
-    // 类型转换
-Value *IRBuilder::CreateFPtoSI(Value *val, const char *c)
-{
-    assert(val->getType()->isFloatTy());
-    Value *value;
-    if ((value = folder->FoldFPtoSI(val)) != nullptr)
-        return value;
-    return InsertBack(CastInstruction::createFPtoSI(Type::getI32Type(), val));
-}
+
+    Value *IRBuilder::CreateFPtoSI(Value *val, const char *c)
+    {
+        assert(val->getType()->isFloatTy());
+        Value *value;
+        if ((value = folder->FoldFPtoSI(val)) != nullptr)
+            return value;
+        return InsertBack(CastInstruction::createFPtoSI(Type::getI32Type(), val));
+    }
 
     Value *IRBuilder::CreateSItoFP(Value *val, const char *c)
     {

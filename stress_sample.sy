@@ -1,0 +1,12 @@
+int add(int x, int y) {
+    return x + y;
+}
+int main() {
+    int a = 5;
+    if (a >= 10 && a < 20) {
+        a = add(a, 1);
+    } else {
+        a = add(a, 2);
+    }
+    return a;
+}

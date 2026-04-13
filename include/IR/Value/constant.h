@@ -27,7 +27,6 @@ namespace IR
         };
 
         static Constant *getZeroValueForType(pType type);
-        // 类型判断接口
         virtual bool isConstantArray() const { return false; }
     };
 

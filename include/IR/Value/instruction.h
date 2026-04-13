@@ -169,7 +169,7 @@ namespace IR
         void removeNode() override;
     };
 
-        struct BinaryInstruction : public Instruction
+    struct BinaryInstruction : public Instruction
     {
         BinaryInstruction(pType ty, BinaryOp op, Value *lhser, Value *rhser);
         // x = op type op1 op2

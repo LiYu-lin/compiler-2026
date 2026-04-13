@@ -105,7 +105,7 @@ struct PointerType : Type {
 struct ArrayType : Type {
     int size;
     pType base;
-
+    pType getElementType() const { return base; }
     static pArrayType getArrayType(int size, pType base);
 
  private:
@@ -137,4 +137,4 @@ static bool checkType(pType a, pType b) {
 }
 }  
 
-#endif  
+#endif

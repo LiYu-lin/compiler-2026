@@ -62,7 +62,6 @@ namespace IR
     {
         os << getIRName() << "(" + std::to_string(instructions.size()) + "):" << std::endl;
 
-        // 添加链表完整性检查
         if (!instructions.begin() || !instructions.end()) {
             std::cerr << "Error: Invalid instruction list in BasicBlock " << getIRName() << std::endl;
             return;
@@ -177,26 +176,26 @@ namespace IR
 
     bool BasicBlock::isReturnBlock()
     {
-        ListNode *last = instructions.back();
-        if (last == instructions.back())
+        if (instructions.empty())
             return false;
+        ListNode *last = instructions.back();
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::Return;
     }
 
     bool BasicBlock::isCondBrBlock()
     {
-        ListNode *last = instructions.back();
-        if (last == instructions.begin())
+        if (instructions.empty())
             return false;
+        ListNode *last = instructions.back();
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::BR &&
                static_cast<BranchInstruction *>(last)->isConditional();
     }
 
     bool BasicBlock::isDirectBrBlock()
     {
-        ListNode *last = instructions.back();
-        if (last == instructions.begin())
+        if (instructions.empty())
             return false;
+        ListNode *last = instructions.back();
         return static_cast<Instruction *>(last)->getOpcode() == Instruction::BR &&
                static_cast<BranchInstruction *>(last)->isUnconditional();
     }

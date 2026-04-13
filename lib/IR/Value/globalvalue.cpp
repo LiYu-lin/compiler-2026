@@ -14,11 +14,14 @@ namespace IR
     Function::Function(pType retType, std::string name, std::vector<pType > argtypes)
         : GlobalValue(nullptr, name, Value::FunctionVal)
     {
-        this->type = FunctionType::getFunctionType(retType, std::move(argtypes));
+        auto params = argtypes;
+        this->type = FunctionType::getFunctionType(retType, std::move(params));
         for (unsigned int i = 0; i < argtypes.size(); i++)
         {
             pType argtype = argtypes[i];
-            funArgs.push_back(new Argument(argtype, i));
+            auto *arg = new Argument(argtype, i);
+            arg->parent = this;
+            funArgs.push_back(arg);
         }
     }
 

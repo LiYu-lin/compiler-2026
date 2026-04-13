@@ -83,7 +83,7 @@ public:
     }
 
     bool insert(const std::string& name, const SymbolInfo& info) {
-        int param = 1;
+        int param = 0;
         if(param)
         {
             std::cout<<"Name:"<<name<<", ";
@@ -151,9 +151,14 @@ class Visitor {
     SymbolTable symbolTable;
     IR::pType currentType = IR::Type::getVoidType();
     IR::Function *currentFunction = nullptr;
+    size_t currentParamIndex = 0;
     IR::Value *undefinedValue = new IR::Value(IR::Type::getVoidType(), "undefined", 0);
     IR::BasicBlock *currentBB = nullptr;
     frontend::TokenPtrs token_buffer;
+    IR::Value* getLValPointer(const ast::LVal &node);
+    IR::Value* coerceToBoolValue(IR::Value *value);
+    bool currentBlockHasTerminator() const;
+    void emitConditionalBranch(const ast::ASTNode &node, IR::BasicBlock *trueBB, IR::BasicBlock *falseBB);
     public:
 
     IR::pType getTypeFromBType(ast::ASTNode::BType btype);

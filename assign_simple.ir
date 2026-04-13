@@ -1,0 +1,12 @@
+module sysy_module
+declare function @memset
+define function @main {
+Label_1(7):
+	@0 = alloca int
+	store i32 5, ptr @0
+	@2 = load i32, ptr @0
+	@3 = add int @2 1
+	store i32 @3, ptr @0
+	@5 = load i32, ptr @0
+	return i32 @5
+}
