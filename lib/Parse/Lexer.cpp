@@ -90,6 +90,7 @@ TokenPtr Lexer::nextIdentifier() {
     while (isalnum(c = get()) || c == '_') {
         ident += c;
     }
+    //gzj: 回退一个字符，因为最后一个字符是不符合标识符的
     unget();
     if (ident.empty()) {
         throw newError("Empty identifier");
