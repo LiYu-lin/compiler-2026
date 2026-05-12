@@ -1,9 +1,10 @@
-#include "ir/module.h"
-#include "backend/component.h"
-#include "Parse/Grammar.h"
-#include "Parse/Lexer.h"
-#include "Parse/Parser.h"
-#include "GenIR/Visitor.h"
+#ifdef COMPILER_BUILD_TESTS
+#include "module.h"
+#include "component.h"
+#include "Grammar.h"
+#include "Lexer.h"
+#include "Parser.h"
+#include "Visitor.h"
 #include <iostream>
 #include <memory>
 #include <regex>
@@ -157,3 +158,4 @@ int main() {
     ok = testFunctionCallLowering() && ok;
     return ok ? 0 : 1;
 }
+#endif

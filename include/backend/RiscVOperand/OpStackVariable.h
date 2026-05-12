@@ -15,7 +15,7 @@ public:
         Array
     };
 
-    // 构造函数 - 标准类型
+    // 构造函�?- 标准类型
     StackVariable(VarType type, std::shared_ptr<Address> addr, 
                  bool useFP = true, bool preserved = false)
         : Operand(type == VarType::Float32 ? OpType::FloatMemory : OpType::IntMemory),
@@ -26,10 +26,10 @@ public:
         initStandardSize();
     }
 
-    // 构造函数 - 自定义大小(数组等)
+    // 构造函�?- 自定义大�?数组�?
     StackVariable(int customSize, int align, std::shared_ptr<Address> addr,
                  bool useFP = true, bool preserved = false)
-        : Operand(OpType::IntMemory),  // 数组默认按整型内存处理
+        : Operand(OpType::IntMemory),  // 数组默认按整型内存处�?
           varType(VarType::Array),
           address(std::move(addr)),
           size(customSize),
@@ -58,7 +58,7 @@ public:
         return typeStr + "[" + std::to_string(size) + "]@" + getAddressing();
     }
 
-    // 内存属性访问
+    // 内存属性访�?
     int getSize() const { return size; }
     int getAlignment() const { return alignment; }
     bool usesFramePointer() const { return useFramePointer; }
@@ -71,7 +71,7 @@ public:
         updateOperandType();
     }
 
-    // 操作数类型判断
+    // 操作数类型判�?
     bool isRegister() const { return false; }
     bool isMemory() const{ return true; }
     bool isImmediate() const  { return false; }
@@ -82,7 +82,7 @@ private:
             case VarType::Int32:   size = 4; alignment = 4; break;
             case VarType::Float32: size = 4; alignment = 4; break;
             case VarType::Pointer: size = 8; alignment = 8; break;
-            case VarType::Array:    size = 0; alignment = 4; break; // 数组大小由构造函数指定
+            case VarType::Array:    size = 0; alignment = 4; break; // 数组大小由构造函数指�?
         }
     }
 

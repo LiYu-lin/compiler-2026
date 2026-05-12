@@ -1,9 +1,9 @@
 #pragma once
 #include "value.h"
 #include "type.h"
-#include "ir/Value/instruction.h"
+#include "instruction.h"
 #include "basicblock.h"
-#include "ir/opt/constantfolder.h"
+#include "constantfolder.h"
 
 namespace IR
 {
@@ -16,7 +16,7 @@ namespace IR
             BB = nullptr;
             folder = ConstantFolder::get();
         }
-        // 设置插入点
+        // 设置插入�?
         void SetInsertPoint(BasicBlock *I);
 
         BasicBlock *GetInsertBlock();
@@ -34,7 +34,7 @@ namespace IR
         StoreInstruction *CreateStore(Value *lval, Value *rval, const char *c = "");
         Value *CreateLoad(pType ty, Value *op, const char *c = "");
 
-        // 二元运算符
+        // 二元运算�?
         Value *CreateAdd(Value *lhs, Value *rhs, const char *c = "");
         Value *CreateSub(Value *lhs, Value *rhs, const char *c = "");
         Value *CreateMul(Value *lhs, Value *rhs, const char *c = "");
@@ -75,11 +75,11 @@ namespace IR
         // 函数调用
         CallInstruction *CreateCall(Function *callee, std::vector<Value *> args, const char *c = "");
 
-        // 类型转
+        // 类型�?
         Value *CreateFPtoSI(Value *val, const char *c = "");
         Value *CreateSItoFP(Value *val, const char *c = "");
 
-        // 控制流指令
+        // 控制流指�?
         BranchInstruction *CreateCondBr(Value *cond, BasicBlock *then_block, BasicBlock *else_block, const char *c = "");
         BranchInstruction *CreateBr(BasicBlock *dest, const char *c = "");
         ReturnInstruction *CreateRet(Value *val, Function *func, const char *c = "");

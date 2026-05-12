@@ -1,6 +1,6 @@
-#include "ir/opt/InstCombine.h"
-#include "ir/Value/constant.h"
-#include "ir/Value/instruction.h"
+#include "InstCombine.h"
+#include "constant.h"
+#include "instruction.h"
 
 namespace IR {
 

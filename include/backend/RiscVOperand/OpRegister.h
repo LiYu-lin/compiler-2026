@@ -1,6 +1,6 @@
 #pragma once
 #include "BasicOperand.h"
-#include "ir/Value.h"  
+#include "Value.h"  
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -11,7 +11,7 @@ namespace backend {
 
     class VirtualRegister : public Operand {
     private:
-        IR::Value* irValue;  // 关联的IR值
+        IR::Value* irValue;  // 关联的IR�?
         bool isTemp;         // 是否是临时寄存器
         std::string hint;    // 寄存器分配的提示
         bool isFloat;        // 是否是浮点寄存器  
@@ -61,7 +61,7 @@ namespace backend {
         static std::shared_ptr<VirtualRegister> createTemporary(bool isFloat = false) {
             return std::make_shared<VirtualRegister>(nullptr, isFloat, true);
         }
-        // 获取关联的IR值
+        // 获取关联的IR�?
         IR::Value* getIRValue() const { return irValue; }
         
         // 是否是临时寄存器

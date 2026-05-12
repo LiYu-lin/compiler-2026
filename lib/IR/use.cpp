@@ -1,6 +1,6 @@
-#include "ir/use.h"
-#include "ir/value.h"
-#include "ir/Value/user.h"
+#include "use.h"
+#include "value.h"
+#include "user.h"
 #include <algorithm>
 namespace IR
 {

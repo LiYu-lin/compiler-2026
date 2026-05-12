@@ -10,7 +10,7 @@
  */
 
 #pragma once
-#include "Parse/Parser.h"
+#include "Parser.h"
 
 namespace frontend {
 namespace parser {

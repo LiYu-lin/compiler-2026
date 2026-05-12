@@ -1,9 +1,9 @@
-#include "GenIR/Visitor.h"
-#include "Parse/AST.h"
-#include "ir/Value/globalvalue.h"
-#include "ir/basicblock.h"
-#include "ir/type.h"
-#include "ir/value.h"
+#include "Visitor.h"
+#include "AST.h"
+#include "globalvalue.h"
+#include "basicblock.h"
+#include "type.h"
+#include "value.h"
 #include <iostream>
 using BType = frontend::ast::ASTNode::BType;
 namespace frontend::visitor {
@@ -223,9 +223,9 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
                 return undefinedValue;
             }
         }
-        constValue = new IR::GlobalVariable(constType, node.ident, initVal, true); // true表示是常量
+        constValue = new IR::GlobalVariable(constType, node.ident, initVal, true); // true表示是常�?
         module.addGlobal(static_cast<IR::GlobalVariable*>(constValue));
-    } else {  // 局部常量处理
+    } else {  // 局部常量处�?
         constValue = builder.CreateAlloca(constType, node.ident, true);
         if (node.constInitVal) {
             auto initVal = node.constInitVal->accept(*this);
@@ -233,7 +233,7 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
         }
     }
 
-    // 设置符号表信息
+    // 设置符号表信�?
     SymbolInfo info(node.ident, currentBType, true, symbolTable.getCurrentScopeLevel());
     info.isArray = !node.dimensions.empty();
     info.dims = dimValues;
@@ -296,7 +296,7 @@ IR::Value* Visitor::visit(const ast::VarDef &node) {
         varType = IR::ArrayType::getArrayType(dimValues.size(), varType);
     }
     
-    // 区分全局变量和局部变量
+    // 区分全局变量和局部变�?
     IR::Value* varValue = nullptr;
     if (currentFunction) {
         varValue = builder.CreateAlloca(varType, node.ident);
@@ -320,7 +320,7 @@ IR::Value* Visitor::visit(const ast::VarDef &node) {
         module.addGlobal(static_cast<IR::GlobalVariable*>(varValue));
     }
 
-    // 符号表记录
+    // 符号表记�?
     SymbolInfo info(
         node.ident,
         currentBType,
@@ -565,7 +565,7 @@ IR::Value* Visitor::visit(const ast::LVal &node) {
         return undefinedValue;
     }
     
-    // 如果是常量，直接返回其值
+    // 如果是常量，直接返回其�?
     if (symbol->isConst) {
         if (auto constant = dynamic_cast<IR::Constant*>(symbol->value)) {
             return constant;

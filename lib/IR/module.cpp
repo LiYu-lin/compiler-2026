@@ -1,7 +1,7 @@
-#include "ir/module.h"
-#include "ir/type.h"
-#include "ir/basicblock.h"
-#include "ir/Value/instruction.h"
+#include "module.h"
+#include "type.h"
+#include "basicblock.h"
+#include "instruction.h"
 #include <iostream>
 namespace IR
 {

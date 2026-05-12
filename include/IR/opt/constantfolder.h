@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ir/value.h"
+#include "value.h"
 #include <assert.h>
 
 namespace IR
@@ -10,7 +10,7 @@ namespace IR
     {
         ConstantFolder() = default;
         bool isPointingConst(Value *val);
-        // 二元运算符
+        // 二元运算�?
         Value *FoldAddInt32(Value *LHS, Value *RHS);
         Value *FoldSubInt32(Value *LHS, Value *RHS);
         Value *FoldMulInt32(Value *LHS, Value *RHS);
@@ -20,7 +20,7 @@ namespace IR
         Value *FoldFSubFloat(Value *LHS, Value *RHS);
         Value *FoldFMulFloat(Value *LHS, Value *RHS);
         Value *FoldFDivFloat(Value *LHS, Value *RHS);
-        // 二元逻辑运算符
+        // 二元逻辑运算�?
         Value *FoldLtInt32(Value *LHS, Value *RHS);  // <
         Value *FoldLeInt32(Value *LHS, Value *RHS);  // <=
         Value *FoldGtInt32(Value *LHS, Value *RHS);  // >

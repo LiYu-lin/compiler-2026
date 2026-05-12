@@ -9,9 +9,9 @@
  *
  */
 
-#include "Parse/AST.h"
+#include "AST.h"
 #include <sstream>
-#include "GenIR/Visitor.h"
+#include "Visitor.h"
 namespace frontend {
 namespace ast {
 IR::Value* ASTNode::accept(frontend::visitor::Visitor& visitor) const {

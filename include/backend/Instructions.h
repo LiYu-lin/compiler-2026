@@ -55,7 +55,7 @@ enum class InstructionTy {
     FCVT_L_S, FCVT_LU_S, FCVT_S_L, FCVT_S_LU,
     // RV32D + RV64D
     FLD, FSD, FMV_X_D, FMV_D_X,
-    // 伪指令
+    // 伪指�?
     CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI,
     CMOV,    
     NOT,     
@@ -554,7 +554,7 @@ public:
     }
 };
 
-// 伪指令
+// 伪指�?
 class PseudoInstruction : public Instruction {
     InstructionTy ty;
     std::vector<OperandVariant> operands;
@@ -779,7 +779,7 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::DIVUW: return "divuw";
         case InstructionTy::REMW: return "remw";
         case InstructionTy::REMUW: return "remuw";
-        // 伪指令
+        // 伪指�?
         case InstructionTy::CALL: return "call";
         case InstructionTy::RET: return "ret";
         case InstructionTy::J: return "j";

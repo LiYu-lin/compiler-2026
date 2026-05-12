@@ -41,6 +41,14 @@ add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 # Target
 target_include_directories(${PROJECT_NAME} PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/Parse
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/GenIR
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/IR
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/IR/Value
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/IR/opt
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/backend
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/backend/RiscVOperand
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/utils
 )
 
 add_executable(compiler ${CMAKE_CURRENT_SOURCE_DIR}/tools/sysy_compiler.cpp)

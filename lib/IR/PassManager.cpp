@@ -1,4 +1,4 @@
-#include "ir/opt/PassManager.h"
+#include "PassManager.h"
 
 #include <iostream>
 

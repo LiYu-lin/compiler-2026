@@ -1,9 +1,10 @@
-#include "GenIR/Visitor.h"
-#include "Parse/Grammar.h"
-#include "Parse/Lexer.h"
-#include "Parse/Parser.h"
-#include "ir/module.h"
-#include "ir/opt/Passes.h"
+#ifdef COMPILER_BUILD_TESTS
+#include "Visitor.h"
+#include "Grammar.h"
+#include "Lexer.h"
+#include "Parser.h"
+#include "module.h"
+#include "Passes.h"
 
 #include <iostream>
 #include <memory>
@@ -92,3 +93,4 @@ int main() {
         return 1;
     }
 }
+#endif

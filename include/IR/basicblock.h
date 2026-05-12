@@ -1,7 +1,7 @@
 #pragma once
 
 #include "value.h"
-#include "ir/type.h"
+#include "type.h"
 #include "listnode.h"
 #include "list.h"
 #include <vector>

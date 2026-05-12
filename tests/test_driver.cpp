@@ -1,3 +1,4 @@
+#ifdef COMPILER_BUILD_TESTS
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -114,3 +115,4 @@ int main() {
         return 1;
     }
 }
+#endif

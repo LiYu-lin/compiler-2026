@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ir/opt/DCE.h"
-#include "ir/opt/InstCombine.h"
-#include "ir/opt/MemoryOpt.h"
-#include "ir/opt/Pass.h"
-#include "ir/opt/PassManager.h"
-#include "ir/opt/SimplifyCFG.h"
+#include "DCE.h"
+#include "InstCombine.h"
+#include "MemoryOpt.h"
+#include "Pass.h"
+#include "PassManager.h"
+#include "SimplifyCFG.h"

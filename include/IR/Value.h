@@ -2,7 +2,7 @@
 #include "type.h"
 #include "use.h"
 #include "list.h"
-#include <cassert> // 包含 assert 所需头文件
+#include <cassert> // 包含 assert 所需头文�?
 #include <iostream>
 #define HANDLE_TYPECHEK_CREATE(value)               \
     bool is##value() const                          \

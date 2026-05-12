@@ -1,4 +1,4 @@
-#include "utils/recycle.h"
+#include "recycle.h"
 #include <iostream>
 namespace utils
 {
@@ -20,7 +20,7 @@ namespace utils
         std::cerr << "Recycle free" << ' ' << instance->RecycleBin.size() << std::endl;
         for (auto& item : instance->RecycleBin)
         {
-            item.second(item.first); // 调用删除器删除指针
+            item.second(item.first); // 调用删除器删除指�?
         }
         instance->RecycleBin.clear(); // 清空 RecycleBin
     }

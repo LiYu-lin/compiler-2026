@@ -1,5 +1,5 @@
-#include "ir/opt/MemoryOpt.h"
-#include "ir/Value/instruction.h"
+#include "MemoryOpt.h"
+#include "instruction.h"
 
 #include <unordered_map>
 

@@ -11,8 +11,8 @@
 
 #pragma once
 
-#include "Parse/AST.h"
-#include "Parse/Lexer.h"
+#include "AST.h"
+#include "Lexer.h"
 #include <functional>
 #include <optional>
 #include <string>

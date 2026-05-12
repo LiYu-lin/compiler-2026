@@ -1,4 +1,4 @@
-#include "ir/type.h"
+#include "type.h"
 #include <cassert>
 // Type
 namespace IR {

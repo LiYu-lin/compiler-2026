@@ -1,7 +1,7 @@
-#include "ir/opt/SimplifyCFG.h"
-#include "ir/Value/constant.h"
-#include "ir/Value/globalvalue.h"
-#include "ir/Value/instruction.h"
+#include "SimplifyCFG.h"
+#include "constant.h"
+#include "globalvalue.h"
+#include "instruction.h"
 
 #include <set>
 #include <vector>

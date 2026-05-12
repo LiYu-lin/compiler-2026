@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ir/module.h"
+#include "module.h"
 
 #include <map>
 #include <ostream>

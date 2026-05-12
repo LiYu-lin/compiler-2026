@@ -1,4 +1,4 @@
-#include "ir/Value/constant.h"
+#include "constant.h"
 
 namespace IR
 {

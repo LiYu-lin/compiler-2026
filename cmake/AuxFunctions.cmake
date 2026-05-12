@@ -27,7 +27,16 @@ function(spawn_test_target target_name file)
     target_include_directories(${name}
         PUBLIC
         ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/include/Parse
+        ${PROJECT_SOURCE_DIR}/include/GenIR
+        ${PROJECT_SOURCE_DIR}/include/IR
+        ${PROJECT_SOURCE_DIR}/include/IR/Value
+        ${PROJECT_SOURCE_DIR}/include/IR/opt
+        ${PROJECT_SOURCE_DIR}/include/backend
+        ${PROJECT_SOURCE_DIR}/include/backend/RiscVOperand
+        ${PROJECT_SOURCE_DIR}/include/utils
     )
+    target_compile_definitions(${name} PRIVATE COMPILER_BUILD_TESTS)
     set(${target_name} ${name})
     set(${target_name} ${${target_name}} PARENT_SCOPE)
 endfunction()

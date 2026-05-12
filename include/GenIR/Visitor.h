@@ -9,12 +9,12 @@
  *
  */
 #pragma once
-#include "ir/IRBuilder.h"
-#include "Parse/AST.h"
-#include "Parse/Lexer.h"
-#include "ir/module.h"
-#include "ir/type.h"
-#include "ir/value.h"
+#include "IRBuilder.h"
+#include "AST.h"
+#include "Lexer.h"
+#include "module.h"
+#include "type.h"
+#include "value.h"
 #include <ostream>
 #include <string>
 #include <vector>
@@ -35,7 +35,7 @@ struct SymbolInfo {
     std::vector<int> dims;
     IR::Value* value;
 
-    // 添加默认构造函数
+    // 添加默认构造函�?
     SymbolInfo() 
         : name(""), 
           baseType(ast::ASTNode::BType::Int),
@@ -45,7 +45,7 @@ struct SymbolInfo {
           scopeLevel(0),
           value(nullptr) {}
     bool isFunction = false;
-    // 保持原有构造函数不变
+    // 保持原有构造函数不�?
     SymbolInfo(std::string name, ast::ASTNode::BType type, bool isConst, int scopeLevel)
         : name(name), baseType(type), isConst(isConst), scopeLevel(scopeLevel), 
           isArray(false), funcType(FuncType::Void), value(nullptr) {}

@@ -1,5 +1,5 @@
-#include "ir/IRBuilder.h"
-#include "ir/value.h"
+#include "IRBuilder.h"
+#include "value.h"
 #define HANDLE_BINARY_CREATE(OPT, TYPE)                                              \
     Value *IRBuilder::Create##OPT(Value *lhs, Value *rhs, const char *c)             \
     {                                                                                \
@@ -110,7 +110,7 @@ namespace IR
         return callInstr;
     }
 
-    // 二元运算符
+    // 二元运算�?
     HANDLE_BINARY_CREATE(Add, Int32)
     HANDLE_BINARY_CREATE(Sub, Int32)
     HANDLE_BINARY_CREATE(Mul, Int32)
@@ -173,7 +173,7 @@ Value* IRBuilder::CreateGt(Value* lhs, Value* rhs, const char* c) {
             return value;
         return InsertBack(CastInstruction::createSItoFP(Type::getFloatType(), val));
     }
-    // 控制流指令
+    // 控制流指�?
     BranchInstruction *IRBuilder::CreateCondBr(Value *cond, BasicBlock *then_block, BasicBlock *else_block, const char *c)
     {
         BranchInstruction *temp = BranchInstruction::createCondBr(cond, then_block, else_block);

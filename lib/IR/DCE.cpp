@@ -1,5 +1,5 @@
-#include "ir/opt/DCE.h"
-#include "ir/Value/instruction.h"
+#include "DCE.h"
+#include "instruction.h"
 
 namespace IR {
 

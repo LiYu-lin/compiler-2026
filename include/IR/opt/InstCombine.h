@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ir/opt/Pass.h"
+#include "Pass.h"
 
 namespace IR {
 

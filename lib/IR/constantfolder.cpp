@@ -1,8 +1,8 @@
-#include "ir/opt/constantfolder.h"
-#include "ir/value.h"
-#include "ir/Value/globalvalue.h"
-#include "ir/Value/instruction.h"
-#include "ir/Value/constant.h"
+#include "constantfolder.h"
+#include "value.h"
+#include "globalvalue.h"
+#include "instruction.h"
+#include "constant.h"
 
 #define HANDLE_BINARY_FOLDER(OPT, TYPE, OP)                                                                    \
     Value *ConstantFolder::Fold##OPT##TYPE(Value *LHS, Value *RHS)                                             \
@@ -41,7 +41,7 @@
 namespace IR
 {
 
-    // 二元运算符
+    // 二元运算�?
     HANDLE_BINARY_FOLDER(Add, Int32, +)
     HANDLE_BINARY_FOLDER(Sub, Int32, -)
     HANDLE_BINARY_FOLDER(Mul, Int32, *)
@@ -52,7 +52,7 @@ namespace IR
     HANDLE_BINARY_FOLDER(FMul, Float, *)
     HANDLE_BINARY_FOLDER(FDiv, Float, /)
 
-    // 二元逻辑运算符
+    // 二元逻辑运算�?
     HANDLE_CMP_FOLDER(Lt, Int32, <)
     HANDLE_CMP_FOLDER(Gt, Int32, >)
     HANDLE_CMP_FOLDER(Le, Int32, <=)

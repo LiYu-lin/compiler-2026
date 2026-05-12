@@ -14,7 +14,7 @@
 #include <string>
 #include <variant>
 #include <vector>
-#include "ir/Value.h"
+#include "Value.h"
 namespace frontend::visitor {
     class Visitor;
 }

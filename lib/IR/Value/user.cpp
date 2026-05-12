@@ -1,5 +1,5 @@
-#include "ir/Value/user.h"
-#include "ir/Value/Constant.h"  // 添加Constant类的完整定义
+#include "user.h"
+#include "constant.h"  // 添加Constant类的完整定义
 #include <algorithm>
 
 namespace IR

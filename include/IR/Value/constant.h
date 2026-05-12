@@ -1,7 +1,7 @@
 #pragma once
 
 #include "user.h"
-#include "ir/type.h"
+#include "type.h"
 #include <cassert>
 #include <map>
 #include <stdexcept>
@@ -80,7 +80,7 @@ namespace IR
             auto element = elements.find(i);
             if (element == elements.end())
             {
-                // type 必须是 ArrayType
+                // type 必须�?ArrayType
                 auto arrType = static_cast<const ArrayType*>(type);
                 if ((int)i >= arrType->getArraySize())
                     error(__PRETTY_FUNCTION__, "Index out of bounds");

@@ -1,4 +1,4 @@
-#include "ir/listnode.h"
+#include "listnode.h"
 
 namespace IR
 {
@@ -24,7 +24,7 @@ namespace IR
         }
         node->next = this;
     }
-    // 在 node 前插入当前节点
+    // �?node 前插入当前节�?
     void ListNode::insertBefore(ListNode *node)
     {
         if (node == nullptr)

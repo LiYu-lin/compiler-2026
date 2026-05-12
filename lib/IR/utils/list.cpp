@@ -1,7 +1,7 @@
-#include "ir/list.h"
-#include "ir/use.h"
-#include "ir/Value/instruction.h"
-#include "ir/basicblock.h"
+#include "list.h"
+#include "use.h"
+#include "instruction.h"
+#include "basicblock.h"
 
 namespace IR
 {
