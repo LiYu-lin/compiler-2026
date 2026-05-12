@@ -1,10 +1,10 @@
-#include "Visitor.h"
-#include "Grammar.h"
-#include "Lexer.h"
-#include "Parser.h"
-#include "component.h"
-#include "module.h"
-#include "Passes.h"
+#include "../include/GenIR/Visitor.h"
+#include "../include/Parse/Grammar.h"
+#include "../include/Parse/Lexer.h"
+#include "../include/Parse/Parser.h"
+#include "../include/backend/component.h"
+#include "../include/IR/module.h"
+#include "../include/IR/opt/Passes.h"
 
 #include <fstream>
 #include <iostream>

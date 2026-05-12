@@ -3,7 +3,7 @@
 #include "globalvalue.h"
 #include "basicblock.h"
 #include "type.h"
-#include "value.h"
+#include "Value.h"
 #include <iostream>
 using BType = frontend::ast::ASTNode::BType;
 namespace frontend::visitor {

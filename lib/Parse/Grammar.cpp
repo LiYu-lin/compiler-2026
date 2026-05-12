@@ -9,9 +9,9 @@
  *
  */
 
-#include "Grammar.h"
-#include "Lexer.h"
-#include "Parser.h"
+#include "../../include/Parse/Grammar.h"
+#include "../../include/Parse/Lexer.h"
+#include "../../include/Parse/Parser.h"
 
 namespace frontend {
 namespace parser {

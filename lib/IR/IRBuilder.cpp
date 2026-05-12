@@ -1,5 +1,5 @@
 #include "IRBuilder.h"
-#include "value.h"
+#include "Value.h"
 #define HANDLE_BINARY_CREATE(OPT, TYPE)                                              \
     Value *IRBuilder::Create##OPT(Value *lhs, Value *rhs, const char *c)             \
     {                                                                                \

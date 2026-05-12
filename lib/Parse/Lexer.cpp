@@ -9,7 +9,7 @@
  *
  */
 
-#include "Lexer.h"
+#include "../../include/Parse/Lexer.h"
 #include <memory>
 
 namespace frontend {

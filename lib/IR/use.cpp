@@ -1,5 +1,5 @@
 #include "use.h"
-#include "value.h"
+#include "Value.h"
 #include "user.h"
 #include <algorithm>
 namespace IR

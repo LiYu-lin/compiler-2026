@@ -1,5 +1,5 @@
 #include "constantfolder.h"
-#include "value.h"
+#include "Value.h"
 #include "globalvalue.h"
 #include "instruction.h"
 #include "constant.h"

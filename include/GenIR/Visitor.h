@@ -9,12 +9,12 @@
  *
  */
 #pragma once
-#include "IRBuilder.h"
-#include "AST.h"
-#include "Lexer.h"
-#include "module.h"
-#include "type.h"
-#include "value.h"
+#include "../IR/IRBuilder.h"
+#include "../Parse/AST.h"
+#include "../Parse/Lexer.h"
+#include "../IR/module.h"
+#include "../IR/type.h"
+#include "../IR/Value.h"
 #include <ostream>
 #include <string>
 #include <vector>

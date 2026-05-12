@@ -1,6 +1,6 @@
 #pragma once
 
-#include "value.h"
+#include "Value.h"
 #include <assert.h>
 
 namespace IR
