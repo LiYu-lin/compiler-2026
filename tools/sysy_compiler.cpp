@@ -111,6 +111,11 @@ int main(int argc, char** argv) {
         std::unique_ptr<IR::Module> module(buildModuleFromSource(readFile(inputPath)));
         IR::PassManager passManager(*module);
         passManager.addPass<IR::SimplifyCFG>();
+        passManager.addPass<IR::InstCombine>();
+        passManager.addPass<IR::MemoryOpt>();
+        passManager.addPass<IR::DCE>();
+        passManager.addPass<IR::SimplifyCFG>();
+        passManager.addPass<IR::MemoryOpt>();
         passManager.addPass<IR::DCE>();
         passManager.run();
 

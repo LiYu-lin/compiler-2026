@@ -28,7 +28,7 @@ namespace IR
     std::vector<BasicBlock *> Function::getVectorBlocks()
     {
         std::vector<BasicBlock *> blocks;
-        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.end(); i = i->nextNode())
         {
             blocks.push_back(static_cast<BasicBlock *>(i));
         }
@@ -37,9 +37,10 @@ namespace IR
 
     void Function::waste()
     {
-        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.end();)
         {
             BasicBlock *idx = static_cast<BasicBlock *>(i);
+            i = i->nextNode();
             idx->waste();
         }
     }
@@ -97,7 +98,7 @@ namespace IR
             Use *use = static_cast<Use *>(i);
             os << '\t' << use->val->getIRName() << std::endl;
         }
-        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.end(); i = i->nextNode())
         {
             BasicBlock *idx = static_cast<BasicBlock *>(i);
             idx->emitUse(os);
@@ -109,7 +110,7 @@ namespace IR
         std::map<BasicBlock *, std::set<BasicBlock *>> cfg;
         if (isBuiltinFunction())
             return cfg;
-        for (ListNode *i = funBlocks.begin(); i != funBlocks.back(); i = i->nextNode())
+        for (ListNode *i = funBlocks.begin(); i != funBlocks.end(); i = i->nextNode())
         {
             BasicBlock *BB = static_cast<BasicBlock *>(i);
             auto succs = BB->getSuccBlock();

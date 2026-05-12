@@ -15,9 +15,11 @@
 当前已接入的 pass：
 
 - `SimplifyCFG`
+- `InstCombine`
+- `MemoryOpt`
 - `DCE`
 
-注意：这两个 pass 目前仍是占位实现，后续需要逐步补齐真实优化逻辑。
+当前 pass 流水线已经具备基础优化能力，包括恒定条件分支折叠、不可达基本块删除、代数恒等式化简、常量比较折叠、基本块内 load forwarding、重复 store 消除和死代码删除。后续仍需要继续补齐跨基本块的数据流优化和更完整的 SSA 变换。
 
 ## 目录结构
 
@@ -142,12 +144,19 @@ IR 相关代码集中在 `include/ir` 和 `lib/IR`：
 - `Module` 管理全局变量、函数和内置函数。
 - `Pass` / `PassManager` 提供中端 pass 流水线基础设施。
 
+当前已实现的优化：
+
+1. `SimplifyCFG`：删除不可达块，化简恒定条件分支。
+2. `InstCombine`：折叠整数/浮点常量运算，化简 `x + 0`、`x * 1`、`x ^ 0`、`x == x` 等局部表达式。
+3. `MemoryOpt`：在基本块内做精确地址的 load forwarding，并删除明显重复的 store。
+4. `DCE`：删除无 use 且无副作用的死指令。
+
 后续优化建议优先补齐：
 
-1. `SimplifyCFG`：删除不可达块、合并空跳转块、化简恒定条件分支。
-2. `DCE`：删除无 use 且无副作用的死指令。
-3. `Mem2Reg`：提升局部标量变量，减少 `alloca/load/store`。
-4. `LowerPhi`：进入后端前将 Phi 转换为前驱块末尾的 move。
+1. `Mem2Reg`：提升局部标量变量，减少 `alloca/load/store`。
+2. `LowerPhi`：进入后端前将 Phi 转换为前驱块末尾的 move。
+3. `GVN/CSE`：消除公共子表达式。
+4. `LoopSimplify/LICM`：规范循环并外提循环不变量。
 
 ### 后端
 
@@ -215,12 +224,13 @@ ctest --test-dir build --output-on-failure
 
 优先级建议：
 
-1. 补齐 `SimplifyCFG` 和 `DCE` 的真实实现。
-2. 给 IR 增加更顺手的遍历、删除和替换 use 接口。
-3. 实现最小可用 `Mem2Reg`。
-4. 实现 `LowerPhi`，保证后端只接收无 Phi 的普通 CFG IR。
-5. 系统检查 RISC-V calling convention 和栈帧布局。
-6. 扩充测试覆盖，尤其是数组、函数调用、短路逻辑、循环和全局变量。
+1. 扩展 `SimplifyCFG` 和 `DCE`，覆盖空跳转块合并、不可达函数清理等更多场景。
+2. 继续完善 `InstCombine` 和 `MemoryOpt`，扩大局部优化覆盖面。
+3. 给 IR 增加更顺手的遍历、删除和替换 use 接口。
+4. 实现最小可用 `Mem2Reg`。
+5. 实现 `LowerPhi`，保证后端只接收无 Phi 的普通 CFG IR。
+6. 系统检查 RISC-V calling convention 和栈帧布局。
+7. 扩充测试覆盖，尤其是数组、函数调用、短路逻辑、循环和全局变量。
 
 ## 合规说明
 

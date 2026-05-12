@@ -4,6 +4,8 @@ add_library_source(
     value.cpp
     module.cpp
     IRBuilder.cpp
+    InstCombine.cpp
+    MemoryOpt.cpp
     basicblock.cpp
     constantfolder.cpp
     Pass.cpp
