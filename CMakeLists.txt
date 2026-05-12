@@ -8,7 +8,7 @@ else()
 endif()
 
 cmake_minimum_required(VERSION 3.12.0)
-project(SysY2022 VERSION 0.1.0 LANGUAGES C CXX)
+project(SysY2026 VERSION 0.1.0 LANGUAGES C CXX)
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # C++ standard
@@ -43,6 +43,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+add_executable(compiler ${CMAKE_CURRENT_SOURCE_DIR}/tools/sysy_compiler.cpp)
+target_link_libraries(compiler PUBLIC ${PROJECT_NAME})
+target_include_directories(compiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 add_executable(sysy_compiler ${CMAKE_CURRENT_SOURCE_DIR}/tools/sysy_compiler.cpp)
 target_link_libraries(sysy_compiler PUBLIC ${PROJECT_NAME})
 target_include_directories(sysy_compiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -51,7 +55,7 @@ install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(TARGETS sysy_compiler
+install(TARGETS compiler sysy_compiler
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME OR MODERN_CMAKE_BUILD_TESTING)

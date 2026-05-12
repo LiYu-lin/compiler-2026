@@ -8,8 +8,9 @@
 - 构建系统：CMake
 - 前端：手写 Lexer、Parser Combinator 和 SysY 语法规则
 - 中端：自定义 IR、IRBuilder、PassManager
-- 后端：RISC-V 汇编生成、栈帧处理、活跃变量分析、冲突图染色寄存器分配
+- 后端：面向 RISC-V 的汇编生成、栈帧处理、活跃变量分析、冲突图染色寄存器分配
 - 测试：`ctest` 驱动的后端和编译器端到端冒烟测试
+- 测评入口：生成名为 `compiler` 的可执行文件，兼容 `compiler testcase.sysy -S -o testcase.s [-O1]`
 
 当前已接入的 pass：
 
@@ -51,11 +52,25 @@ cmake --build build --config Debug
 ctest --test-dir build --output-on-failure
 ```
 
-Windows/MinGW 单配置生成器通常会在 `build/sysy_compiler.exe` 生成编译器；Visual Studio 等多配置生成器可能位于 `build/Debug/sysy_compiler.exe`。
+Windows/MinGW 单配置生成器通常会在 `build/compiler.exe` 生成测评入口；Visual Studio 等多配置生成器可能位于 `build/Debug/compiler.exe`。项目仍保留 `sysy_compiler` 目标用于本地兼容。
+
+在 Ubuntu 24.04 测评环境中，本项目使用 C++17 和 CMake 构建，目标编译器可执行文件统一命名为 `compiler`。
 
 ## 使用方式
 
 输出 RISC-V 汇编：
+
+```powershell
+.\build\compiler.exe fixtures\sample.sy -S -o sample.s
+```
+
+性能测评入口兼容 `-O1`：
+
+```powershell
+.\build\compiler.exe fixtures\sample.sy -S -o sample.s -O1
+```
+
+保留的调试用法：
 
 ```powershell
 .\build\sysy_compiler.exe --emit-asm fixtures\sample.sy -o sample.s
@@ -146,6 +161,8 @@ IR 相关代码集中在 `include/ir` 和 `lib/IR`：
 
 当前寄存器分配主要使用临时寄存器集合，并包含基础 spill 重写逻辑。后续如果要对齐完整 ABI，需要继续完善调用约定、浮点寄存器、callee-saved 寄存器和复杂栈帧场景。
 
+技术方案要求 RISC-V 目标遵从 GCC `-mcmodel=medany` 约定并生成 64 位 RISC-V 汇编。当前后端主链路已经能生成 RISC-V 汇编并通过项目冒烟测试，但仍需要继续系统补齐 RV64 ABI、全局地址 materialization 和更完整的浮点/数组支持。
+
 ## 开发规范
 
 推荐 VSCode 扩展：
@@ -180,7 +197,7 @@ IR 相关代码集中在 `include/ir` 和 `lib/IR`：
 现有测试包括：
 
 - `test_backend`：从 SysY 源码生成 IR，再检查 RISC-V 汇编结构。
-- `test_driver`：调用 `sysy_compiler` 命令行程序，验证端到端输出。
+- `test_driver`：调用 `compiler testcase.sysy -S -o testcase.s -O1` 格式，验证端到端输出。
 
 运行：
 
@@ -204,6 +221,18 @@ ctest --test-dir build --output-on-failure
 4. 实现 `LowerPhi`，保证后端只接收无 Phi 的普通 CFG IR。
 5. 系统检查 RISC-V calling convention 和栈帧布局。
 6. 扩充测试覆盖，尤其是数组、函数调用、短路逻辑、循环和全局变量。
+
+## 合规说明
+
+本项目不依赖 GCC、LLVM 等现有开源编译器框架源码。前端、IR、中端 pass 框架和后端均为项目内自定义实现。
+
+项目开发过程中使用了 OpenAI Codex 作为辅助工具，辅助范围包括：
+
+- 整理 `readme.md` 项目说明和比赛技术方案适配说明。
+- 修改命令行入口，使其兼容 `compiler testcase.sysy -S -o testcase.s [-O1]`。
+- 调整 CMake 目标，使构建产物包含测评要求的 `compiler`。
+
+上述修改均经过人工审阅，并通过项目构建与测试进行验证。
 
 ## 维护说明
 

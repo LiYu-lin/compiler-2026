@@ -22,7 +22,7 @@ function(spawn_test_target target_name file)
     add_executable(${name} ${file})
     target_link_libraries(${name}
         PUBLIC
-        SysY2022
+        ${PROJECT_NAME}
     )
     target_include_directories(${name}
         PUBLIC

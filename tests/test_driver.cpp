@@ -72,21 +72,22 @@ int main() {
         const std::string output = outputPath.string();
         std::vector<const char*> argv = {
             compiler.c_str(),
-            "--emit-asm",
             input.c_str(),
+            "-S",
             "-o",
             output.c_str(),
+            "-O1",
             nullptr
         };
         const int exitCode = _spawnv(_P_WAIT, compiler.c_str(), argv.data());
 #else
         const std::string command =
-            "\"" + compilerPath.string() + "\" --emit-asm \"" +
-            inputPath.string() + "\" -o \"" + outputPath.string() + "\"";
+            "\"" + compilerPath.string() + "\" \"" +
+            inputPath.string() + "\" -S -o \"" + outputPath.string() + "\" -O1";
         const int exitCode = std::system(command.c_str());
 #endif
         if (exitCode != 0) {
-            throw std::runtime_error("sysy_compiler exited with code " + std::to_string(exitCode));
+            throw std::runtime_error("compiler exited with code " + std::to_string(exitCode));
         }
 
         const std::string asmOutput = readFile(outputPath);

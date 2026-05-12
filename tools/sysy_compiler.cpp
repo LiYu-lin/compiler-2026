@@ -59,7 +59,10 @@ void writeOutput(const std::string& outputPath, const std::string& content) {
 
 void printUsage(const char* argv0) {
     std::cerr
-        << "Usage: " << argv0 << " [--emit-ir|--emit-asm] <input.sy> [-o <output-file>]\n";
+        << "Usage: " << argv0
+        << " <input.sysy|input.sy> -S -o <output-file> [-O1]\n"
+        << "       " << argv0
+        << " [--emit-ir|--emit-asm] <input.sysy|input.sy> [-o <output-file>]\n";
 }
 
 }
@@ -76,14 +79,21 @@ int main(int argc, char** argv) {
             if (arg == "--emit-ir") {
                 emitIR = true;
                 emitAsm = false;
-            } else if (arg == "--emit-asm") {
+            } else if (arg == "--emit-asm" || arg == "-S") {
                 emitAsm = true;
                 emitIR = false;
+            } else if (arg == "-O0" || arg == "-O1" || arg == "-O2") {
+                // Competition compatibility: optimization levels are accepted
+                // here and mapped onto the currently available pass pipeline.
+                continue;
             } else if (arg == "-o" || arg == "--output") {
                 if (i + 1 >= argc) {
                     throw std::runtime_error("Missing path after " + arg);
                 }
                 outputPath = argv[++i];
+            } else if (arg == "-h" || arg == "--help") {
+                printUsage(argv[0]);
+                return 0;
             } else if (!arg.empty() && arg.front() == '-') {
                 throw std::runtime_error("Unknown option: " + arg);
             } else if (inputPath.empty()) {
@@ -119,7 +129,7 @@ int main(int argc, char** argv) {
 
         throw std::runtime_error("No emission mode selected");
     } catch (const std::exception& e) {
-        std::cerr << "sysy_compiler error: " << e.what() << '\n';
+        std::cerr << "compiler error: " << e.what() << '\n';
         return 1;
     }
 }
