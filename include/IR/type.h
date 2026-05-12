@@ -5,6 +5,7 @@
 #ifndef COMPILER_MIR_TYPE_H
 #define COMPILER_MIR_TYPE_H
 
+#include <ostream>
 #include <vector>
 #include <string>
 namespace IR {
