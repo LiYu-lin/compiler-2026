@@ -70,6 +70,8 @@ char Lexer::get() {
     return EOF;
 }
 
+
+
 void Lexer::unget() {
     if (input && !positionHistory.empty()) {
         input.unget();
@@ -90,7 +92,7 @@ TokenPtr Lexer::nextIdentifier() {
     while (isalnum(c = get()) || c == '_') {
         ident += c;
     }
-    //gzj: 回退一个字符，因为最后一个字符是不符合标识符�?
+    //gzj: 回退一个字符，因为最后一个字符是不符合标识符�?
     unget();
     if (ident.empty()) {
         throw newError("Empty identifier");
@@ -146,121 +148,45 @@ TokenPtr Lexer::nextOctal() {
 }
 
 TokenPtr Lexer::nextNumber() {
-    size_t start = tokPos;
-    size_t startLine = line;
-    size_t startColumn = column;
-    std::string literal;
-    bool isFloat = false;
-
-    auto takeDigits = [&](auto predicate) {
-        bool any = false;
-        while (predicate(peek())) {
-            literal += get();
-            any = true;
-        }
-        return any;
+    char c = get();
+    auto frac = [&] {
+        size_t start = tokPos;
+        size_t startLine = line;
+        size_t startColumn = column;
+        auto decimal = "0." + nextDecimalStr();
+        return box<token::FloatConst>(std::stof(decimal), startLine,
+                                      startColumn, start);
     };
-
-    auto takeDecimalExponent = [&]() {
-        if (peek() != 'e' && peek() != 'E') {
-            return false;
+    if (c == '0') {
+        if (peek() == 'x') {
+            get();
+            return nextHexadecimal();
+        } else if (peek() == '.') {
+            get();
+            return frac();
+        } else {
+            return nextOctal();
         }
-        isFloat = true;
-        literal += get();
-        if (peek() == '+' || peek() == '-') {
-            literal += get();
-        }
-        if (!isdigit(peek())) {
-            throw newError("Unexpected decimal exponent");
-        }
-        takeDigits([](char ch) { return isdigit(ch); });
-        return true;
-    };
-
-    auto takeHexExponent = [&]() {
-        if (peek() != 'p' && peek() != 'P') {
-            return false;
-        }
-        isFloat = true;
-        literal += get();
-        if (peek() == '+' || peek() == '-') {
-            literal += get();
-        }
-        if (!isdigit(peek())) {
-            throw newError("Unexpected hexadecimal exponent");
-        }
-        takeDigits([](char ch) { return isdigit(ch); });
-        return true;
-    };
-
-    literal += get();
-
-    if (literal == "0" && (peek() == 'x' || peek() == 'X')) {
-        literal += get();
-        bool hasDigits = takeDigits([](char ch) { return isxdigit(ch); });
+    } else if (c == '.') {
+        return frac();
+    } else {
+        unget();
+        size_t start = tokPos;
+        size_t startLine = line;
+        size_t startColumn = column;
+        auto intPart = nextDecimalStr();
         if (peek() == '.') {
-            isFloat = true;
-            literal += get();
-            hasDigits = takeDigits([](char ch) { return isxdigit(ch); }) || hasDigits;
+            get();
+            auto decimal = intPart + "." + nextDecimalStr();
+            return box<token::FloatConst>(std::stof(decimal), startLine,
+                                          startColumn, start);
+        } else {
+            return box<token::IntConst>(std::stoi(intPart), startLine,
+                                        startColumn, start);
         }
-        if (!hasDigits) {
-            throw newError("Unexpected hexadecimal number");
-        }
-        takeHexExponent();
-        if (isFloat) {
-            return box<token::FloatConst>(std::stof(literal), startLine, startColumn, start);
-        }
-        return box<token::IntConst>(std::stoi(literal, nullptr, 16), startLine, startColumn, start);
     }
-
-    if (literal == ".") {
-        isFloat = true;
-        if (!takeDigits([](char ch) { return isdigit(ch); })) {
-            throw newError("Unexpected decimal number");
-        }
-        takeDecimalExponent();
-        return box<token::FloatConst>(std::stof(literal), startLine, startColumn, start);
-    }
-
-    if (literal == "0") {
-        if (peek() == '.') {
-            isFloat = true;
-            literal += get();
-            takeDigits([](char ch) { return isdigit(ch); });
-            takeDecimalExponent();
-            return box<token::FloatConst>(std::stof(literal), startLine, startColumn, start);
-        }
-        if (peek() == 'e' || peek() == 'E') {
-            takeDecimalExponent();
-            return box<token::FloatConst>(std::stof(literal), startLine, startColumn, start);
-        }
-        std::string octalDigits;
-        while (isdigit(peek())) {
-            char ch = get();
-            if (ch >= '8') {
-                throw newError("Unexpected octal number");
-            }
-            octalDigits += ch;
-        }
-        if (octalDigits.empty()) {
-            return box<token::IntConst>(0, startLine, startColumn, start);
-        }
-        return box<token::IntConst>(std::stoi(octalDigits, nullptr, 8), startLine, startColumn, start);
-    }
-
-    takeDigits([](char ch) { return isdigit(ch); });
-    if (peek() == '.') {
-        isFloat = true;
-        literal += get();
-        takeDigits([](char ch) { return isdigit(ch); });
-    }
-    takeDecimalExponent();
-
-    if (isFloat) {
-        return box<token::FloatConst>(std::stof(literal), startLine, startColumn, start);
-    }
-    return box<token::IntConst>(std::stoi(literal), startLine, startColumn, start);
 }
+
 void Lexer::skipLineComment() {
     char c;
     while ((c = get()) != '\n' && c != EOF) {
@@ -326,6 +252,8 @@ std::shared_ptr<Token> Lexer::nextToken() {
             return box<token::Operator>("-", line, column, tokPos);
         } else if (c == '*') {
             return box<token::Operator>("*", line, column, tokPos);
+        } else if (c == '/') {
+            return box<token::Operator>("/", line, column, tokPos);
         } else if (c == '%') {
             return box<token::Operator>("%", line, column, tokPos);
         } else if (c == '&') {
@@ -376,6 +304,3 @@ Lexer::Error Lexer::newError(const std::string &message) const {
 }
 
 } // namespace frontend
-
-
-

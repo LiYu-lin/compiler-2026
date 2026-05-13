@@ -62,7 +62,7 @@ void emitFixedFrameRestoreIfNeeded(AsmBasicBlock* block) {
 
     if (function->shouldSaveReturnAddress()) {
         block->addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LW,
+            InstructionTy::LD,
             PhysicalRegister::get(1),
             VirtualRegister::createStackPointerRef(),
             std::make_shared<Immediate>(static_cast<int32_t>(function->getReturnAddressOffsetFromFixedFrameBase()))));
@@ -83,7 +83,7 @@ void emitFixedFrameRestoreIfNeeded(AsmBasicBlock* block) {
     std::vector<AsmBasicBlock*> AsmBasicBlock::getSuccessors() {
         std::vector<AsmBasicBlock*> successors;
             for (auto succ : irBlock->getSuccBlock()) {
-        // 通过父函数的映射表找到对应的Asm基本�?
+        // 通过父函数的映射表找到对应的Asm基本�?
             if (parentFunction) {
                 auto asmSucc = parentFunction->getAsmBasicBlock(succ);
                 if (asmSucc) {
@@ -190,17 +190,17 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
     auto rd = VirtualRegister::create(inst, inst->getType()->isFloatTy());
     
     switch (inst->getOpcode()) {
-        // 整数运算
+        // gzj：这里只处理i32，所以用32位w
         case IR::Instruction::Add:
-            return std::make_shared<RInstruction>(InstructionTy::ADD, rd, lhs, rhs);
+            return std::make_shared<RInstruction>(InstructionTy::ADDW, rd, lhs, rhs);
         case IR::Instruction::Sub:
-            return std::make_shared<RInstruction>(InstructionTy::SUB, rd, lhs, rhs);
+            return std::make_shared<RInstruction>(InstructionTy::SUBW, rd, lhs, rhs);
         case IR::Instruction::Mul:
-            return std::make_shared<RInstruction>(InstructionTy::MUL, rd, lhs, rhs);
+            return std::make_shared<RInstruction>(InstructionTy::MULW, rd, lhs, rhs);
         case IR::Instruction::Div:
-            return std::make_shared<RInstruction>(InstructionTy::DIV, rd, lhs, rhs);
+            return std::make_shared<RInstruction>(InstructionTy::DIVW, rd, lhs, rhs);
         case IR::Instruction::Rem:
-            return std::make_shared<RInstruction>(InstructionTy::REM, rd, lhs, rhs);
+            return std::make_shared<RInstruction>(InstructionTy::REMW, rd, lhs, rhs);
             
         // 浮点运算
         case IR::Instruction::FAdd:
@@ -212,14 +212,14 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
         case IR::Instruction::FDiv:
             return std::make_shared<RInstruction>(InstructionTy::FDIV_S, rd, lhs, rhs);
         // case IR::Instruction::FRem:
-        //     // RISC-V没有直接的浮点取模指令，需要软件实�?
+        //     // RISC-V没有直接的浮点取模指令，需要软件实�?
         //     addInstruction(std::make_shared<Call>(
         //         std::make_shared<Label>("fmodf"), 
         //         {lhs, rhs}, 
         //         rd));
         //     return nullptr;
             
-        // 位运�?
+        // 位运�?
         case IR::Instruction::And:
             return std::make_shared<RInstruction>(InstructionTy::AND, rd, lhs, rhs);
         case IR::Instruction::Or:
@@ -237,7 +237,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
     auto result = VirtualRegister::create(inst, inst->getType()->isFloatTy());
     std::vector<IR::Value*> indices = inst->getIndices();
     
-    // 计算偏移�?
+    // 计算偏移�?
     auto offset = VirtualRegister::createTemp(false);
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
@@ -249,9 +249,9 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
         auto index = materializeValue(this, indices[i]);
         auto temp = VirtualRegister::createTemp(false);
         
-        // 计算当前维度的偏�?
+        // 计算当前维度的偏�?
         if (i == 0) {
-            // 第一维直接使用索�?
+            // 第一维直接使用索�?
             addInstruction(std::make_shared<RInstruction>(
                 InstructionTy::ADD,
                 offset,
@@ -311,7 +311,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertUnaryInstruction(IR::UnaryIns
                 
         case IR::Instruction::FNeg:
             return std::make_shared<RInstruction>(
-                InstructionTy::FSGNJN_S,  // 符号位取�?
+                InstructionTy::FSGNJN_S,  // 符号位取�?
                 dst,
                 src,
                 src);
@@ -413,7 +413,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
     const int extraArgBytes = callArgs.size() > 8
         ? static_cast<int>((callArgs.size() - 8) * 4)
         : 0;
-    const int saveBytes = 32;
+    const int saveBytes = 64;
     const int callFrameBytes = ((saveBytes + extraArgBytes + 15) / 16) * 16;
 
     addInstruction(std::make_shared<IInstruction>(
@@ -433,17 +433,17 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
 
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::SW,
+            InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::SW,
+            InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 8)));
     }
 
     addInstruction(std::make_shared<Call>(
@@ -453,17 +453,17 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
 
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LW,
+            InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LW,
+            InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 8)));
     }
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,

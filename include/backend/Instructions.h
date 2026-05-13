@@ -55,7 +55,7 @@ enum class InstructionTy {
     FCVT_L_S, FCVT_LU_S, FCVT_S_L, FCVT_S_LU,
     // RV32D + RV64D
     FLD, FSD, FMV_X_D, FMV_D_X,
-    // 伪指�?
+    // 伪指�?
     CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI, LA,
     CMOV,    
     NOT,     
@@ -177,7 +177,7 @@ public:
     }
     InstType getInstType() const override { return InstType::R; }
     bool isLoad() const override { 
-        return ty == InstructionTy::LW || ty == InstructionTy::FLW; 
+        return false; 
     }
     bool isStore() const override { return false; }
     bool isBranch() const override { return false; }
@@ -268,8 +268,13 @@ public:
     InstType getInstType() const override { return InstType::I; }
     
     bool isLoad() const override { 
-        return ty >= InstructionTy::LB && ty <= InstructionTy::LHU; 
+        return (ty >= InstructionTy::LB && ty <= InstructionTy::LHU) ||
+            ty == InstructionTy::LWU ||
+            ty == InstructionTy::LD ||
+            ty == InstructionTy::FLW ||
+            ty == InstructionTy::FLD;
     }
+
     bool isStore() const override { return false; }
     bool isBranch() const override { return ty == InstructionTy::JALR; }
     bool isCall() const override { return false; }
@@ -559,7 +564,7 @@ public:
     }
 };
 
-// 伪指�?
+// 伪指�?
 class PseudoInstruction : public Instruction {
     InstructionTy ty;
     std::vector<OperandVariant> operands;
@@ -799,7 +804,7 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::FCVT_W_S: return "fcvt.w.s";
         case InstructionTy::FCVT_S_W: return "fcvt.s.w";
         case InstructionTy::FMV_W_X: return "fmv.w.x";
-        // 伪指�?
+        // 伪指�?
         case InstructionTy::CALL: return "call";
         case InstructionTy::RET: return "ret";
         case InstructionTy::J: return "j";
