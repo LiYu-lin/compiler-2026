@@ -468,9 +468,11 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
     const int extraArgBytes = callArgs.size() > 8
         ? static_cast<int>((callArgs.size() - 8) * 4)
         : 0;
-    const int saveOffset = static_cast<int>((extraArgBytes + 7) / 8 * 8);
-    const int saveBytes = 64;
-    const int callFrameBytes = ((saveOffset + saveBytes + 15) / 16) * 16;
+    const int intSaveOffset = static_cast<int>((extraArgBytes + 7) / 8 * 8);
+    const int intSaveBytes = 64;
+    const int floatSaveOffset = intSaveOffset + intSaveBytes;
+    const int floatSaveBytes = 32;
+    const int callFrameBytes = ((floatSaveOffset + floatSaveBytes + 15) / 16) * 16;
 
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
@@ -492,14 +494,28 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(saveOffset + (reg - 5) * 8)));
+            std::make_shared<Immediate>(intSaveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
             InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(saveOffset + (reg - 25) * 8)));
+            std::make_shared<Immediate>(intSaveOffset + (reg - 25) * 8)));
+    }
+    for (int reg = 5; reg <= 7; ++reg) {
+        addInstruction(std::make_shared<SInstruction>(
+            InstructionTy::FSW,
+            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(reg, true),
+            std::make_shared<Immediate>(floatSaveOffset + (reg - 5) * 4)));
+    }
+    for (int reg = 28; reg <= 31; ++reg) {
+        addInstruction(std::make_shared<SInstruction>(
+            InstructionTy::FSW,
+            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(reg, true),
+            std::make_shared<Immediate>(floatSaveOffset + 12 + (reg - 28) * 4)));
     }
 
     addInstruction(std::make_shared<Call>(
@@ -512,14 +528,28 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(saveOffset + (reg - 5) * 8)));
+            std::make_shared<Immediate>(intSaveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
             InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(saveOffset + (reg - 25) * 8)));
+            std::make_shared<Immediate>(intSaveOffset + (reg - 25) * 8)));
+    }
+    for (int reg = 5; reg <= 7; ++reg) {
+        addInstruction(std::make_shared<IInstruction>(
+            InstructionTy::FLW,
+            PhysicalRegister::get(reg, true),
+            VirtualRegister::createStackPointerRef(),
+            std::make_shared<Immediate>(floatSaveOffset + (reg - 5) * 4)));
+    }
+    for (int reg = 28; reg <= 31; ++reg) {
+        addInstruction(std::make_shared<IInstruction>(
+            InstructionTy::FLW,
+            PhysicalRegister::get(reg, true),
+            VirtualRegister::createStackPointerRef(),
+            std::make_shared<Immediate>(floatSaveOffset + 12 + (reg - 28) * 4)));
     }
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
