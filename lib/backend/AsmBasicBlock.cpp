@@ -9,7 +9,81 @@ namespace backend {
 
 namespace {
 
+class EpilogueInstruction : public Instruction {
+    AsmFunction* function;
+
+public:
+    explicit EpilogueInstruction(AsmFunction* function) : function(function) {}
+
+    InstType getInstType() const override { return InstType::Pseudo; }
+
+    std::string output() const override {
+        auto fixedBytes = static_cast<int32_t>(function->getStackFrameSize());
+        if (fixedBytes == 0) {
+            return "";
+        }
+
+        std::string s;
+        if (function->shouldSaveReturnAddress()) {
+            s += "ld ra, " +
+                 std::to_string(function->getReturnAddressOffsetFromFixedFrameBase()) +
+                 "(sp)\n\t";
+        }
+
+        if (fixedBytes <= 2047) {
+            s += "addi sp, sp, " + std::to_string(fixedBytes) + "\n";
+        } else {
+            s += "li t0, " + std::to_string(fixedBytes) + "\n\t";
+            s += "add sp, sp, t0\n";
+        }
+
+        return s;
+    }
+};
+
+class LoadStackArgumentInstruction : public Instruction {
+    AsmFunction* function;
+    AnyRegister rd;
+    int argNo;
+    bool isFloat;
+
+public:
+    LoadStackArgumentInstruction(AsmFunction* function, AnyRegister rd, int argNo, bool isFloat)
+        : function(function), rd(rd), argNo(argNo), isFloat(isFloat) {
+        reg_def_push_back(rd);
+    }
+
+    InstType getInstType() const override { return InstType::Pseudo; }
+    bool isLoad() const override { return true; }
+
+    std::string output() const override {
+        auto offset = static_cast<int32_t>(
+            function->getStackFrameSize() + static_cast<size_t>(argNo - 8) * 4);
+        return std::string(isFloat ? "flw " : "lw ") +
+               rd->toString() + ", " + std::to_string(offset) + "(sp)\n";
+    }
+
+    void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
+        Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
+        if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(rd)) {
+            auto it = vregToPregMap.find(vreg);
+            if (it != vregToPregMap.end()) {
+                rd = it->second;
+            }
+        }
+    }
+};
+
 AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
+    if (auto *arg = dynamic_cast<IR::Argument*>(value)) {
+        if (arg->getArgNo() >= 8) {
+            auto temp = VirtualRegister::createTemp(arg->getType()->isFloatTy());
+            block->addInstruction(std::make_shared<LoadStackArgumentInstruction>(
+                block->getParentFunction(), temp, arg->getArgNo(), arg->getType()->isFloatTy()));
+            return temp;
+        }
+    }
+
     if (auto globalVar = dynamic_cast<IR::GlobalVariable*>(value)) {
         auto temp = VirtualRegister::createTemp(false);
         block->addInstruction(createPseudoInstruction(
@@ -54,27 +128,8 @@ void emitStackRestoreIfNeeded(AsmBasicBlock* block) {
 }
 
 void emitFixedFrameRestoreIfNeeded(AsmBasicBlock* block) {
-    auto *function = block->getParentFunction();
-    auto fixedBytes = static_cast<int32_t>(function->getStackFrameSize());
-    if (fixedBytes == 0) {
-        return;
-    }
-
-    if (function->shouldSaveReturnAddress()) {
-        block->addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LD,
-            PhysicalRegister::get(1),
-            VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(static_cast<int32_t>(function->getReturnAddressOffsetFromFixedFrameBase()))));
-    }
-
-    if (fixedBytes <= 2047) {
-        block->addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::ADDI,
-            VirtualRegister::createStackPointerRef(),
-            VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(fixedBytes)));
-    }
+    block->addInstruction(std::make_shared<EpilogueInstruction>(
+        block->getParentFunction()));
 }
 
 }
@@ -413,8 +468,9 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
     const int extraArgBytes = callArgs.size() > 8
         ? static_cast<int>((callArgs.size() - 8) * 4)
         : 0;
+    const int saveOffset = static_cast<int>((extraArgBytes + 7) / 8 * 8);
     const int saveBytes = 64;
-    const int callFrameBytes = ((saveBytes + extraArgBytes + 15) / 16) * 16;
+    const int callFrameBytes = ((saveOffset + saveBytes + 15) / 16) * 16;
 
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
@@ -436,14 +492,14 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 8)));
+            std::make_shared<Immediate>(saveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
             InstructionTy::SD,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 8)));
+            std::make_shared<Immediate>(saveOffset + (reg - 25) * 8)));
     }
 
     addInstruction(std::make_shared<Call>(
@@ -456,14 +512,14 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 8)));
+            std::make_shared<Immediate>(saveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
             InstructionTy::LD,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 8)));
+            std::make_shared<Immediate>(saveOffset + (reg - 25) * 8)));
     }
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,

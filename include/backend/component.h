@@ -305,7 +305,10 @@ public:
         std::string s;
         s += label->toString() + ":\n";
         for (const auto& inst : instructions) {
-            s += "\t" + inst->output();
+            auto text = inst->output();
+            if (!text.empty()) {
+                s += "\t" + text;
+            }
         }
         return s;
     }
@@ -377,7 +380,13 @@ public:
         s += "\t.type " + label->getLabelName() + ", @function\n";
         s += label->getLabelName() + ":\n";
         if (getStackFrameSize() > 0) {
-            s += "\taddi sp, sp, -" + std::to_string(getStackFrameSize()) + "\n";
+            auto frameSize = getStackFrameSize();
+            if (frameSize <= 2047) {
+                s += "\taddi sp, sp, -" + std::to_string(frameSize) + "\n";
+            } else {
+                s += "\tli t0, " + std::to_string(frameSize) + "\n";
+                s += "\tsub sp, sp, t0\n";
+            }
             if (shouldSaveReturnAddress()) {
                 s += "\tsd ra, " + std::to_string(getReturnAddressOffsetFromFixedFrameBase()) + "(sp)\n";
             }
