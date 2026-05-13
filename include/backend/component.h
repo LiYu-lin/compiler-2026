@@ -388,7 +388,14 @@ public:
                 s += "\tsub sp, sp, t0\n";
             }
             if (shouldSaveReturnAddress()) {
-                s += "\tsd ra, " + std::to_string(getReturnAddressOffsetFromFixedFrameBase()) + "(sp)\n";
+                auto raOffset = static_cast<int32_t>(getReturnAddressOffsetFromFixedFrameBase());
+                if (fitsSigned12(raOffset)) {
+                    s += "\tsd ra, " + std::to_string(raOffset) + "(sp)\n";
+                } else {
+                    s += "\tli t0, " + std::to_string(raOffset) + "\n";
+                    s += "\tadd t0, sp, t0\n";
+                    s += "\tsd ra, 0(t0)\n";
+                }
             }
         }
 

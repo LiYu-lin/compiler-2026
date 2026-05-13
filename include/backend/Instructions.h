@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <sstream>
 #include "RiscVOperand/OpRegister.h"
 #include "RiscVOperand/OpImmediate.h"
 #include <unordered_set>
@@ -64,6 +65,31 @@ enum class InstructionTy {
 };
 
 inline const char* RiscVTypeName(InstructionTy ty);
+
+inline bool fitsSigned12(int32_t value) {
+    return value >= -2048 && value <= 2047;
+}
+
+inline bool isIntImmediate(const pImmediate& imm) {
+    return imm && imm->getImmType() == Immediate::ImmType::Int;
+}
+
+inline std::string chooseScratchRegister(std::initializer_list<std::string> avoid) {
+    const char* candidates[] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
+    for (auto* candidate : candidates) {
+        bool used = false;
+        for (const auto& reg : avoid) {
+            if (reg == candidate) {
+                used = true;
+                break;
+            }
+        }
+        if (!used) {
+            return candidate;
+        }
+    }
+    return "t0";
+}
 
 class Instruction {
 public:
@@ -281,9 +307,28 @@ public:
     bool isReturn() const override { return false; }
     
     std::string output() const override {
-        return isLoad() ? std::string(RiscVTypeName(ty))  + " " +
-               rd->toString() + ", " + imm->toString() + "(" + rs1->toString() + ")\n"
-               : std::string(RiscVTypeName(ty)) + " " +
+        if (isLoad()) {
+            if (isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+                auto scratch = chooseScratchRegister({rs1->toString()});
+                std::ostringstream out;
+                out << "li " << scratch << ", " << imm->toString() << "\n\t";
+                out << "add " << scratch << ", " << rs1->toString() << ", " << scratch << "\n\t";
+                out << RiscVTypeName(ty) << " " << rd->toString() << ", 0(" << scratch << ")\n";
+                return out.str();
+            }
+            return std::string(RiscVTypeName(ty)) + " " +
+                   rd->toString() + ", " + imm->toString() + "(" + rs1->toString() + ")\n";
+        }
+
+        if (ty == InstructionTy::ADDI && isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+            auto scratch = chooseScratchRegister({rs1->toString()});
+            std::ostringstream out;
+            out << "li " << scratch << ", " << imm->toString() << "\n\t";
+            out << "add " << rd->toString() << ", " << rs1->toString() << ", " << scratch << "\n";
+            return out.str();
+        }
+
+        return std::string(RiscVTypeName(ty)) + " " +
                rd->toString() + ", " + rs1->toString() + ", " + imm->toString() + "\n";
     }
 
@@ -346,6 +391,14 @@ public:
     bool isReturn() const override { return false; }
     
     std::string output() const override {
+        if (isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+            auto scratch = chooseScratchRegister({rs1->toString(), rs2->toString()});
+            std::ostringstream out;
+            out << "li " << scratch << ", " << imm->toString() << "\n\t";
+            out << "add " << scratch << ", " << rs1->toString() << ", " << scratch << "\n\t";
+            out << RiscVTypeName(ty) << " " << rs2->toString() << ", 0(" << scratch << ")\n";
+            return out.str();
+        }
         return std::string(RiscVTypeName(ty)) + " "
            + rs2->toString() + ", "
            + imm->toString() + "(" + rs1->toString() + ")\n";

@@ -10,6 +10,8 @@
  */
 
 #include "../../include/Parse/Lexer.h"
+#include <cstdlib>
+#include <stdexcept>
 #include <memory>
 
 namespace frontend {
@@ -148,42 +150,86 @@ TokenPtr Lexer::nextOctal() {
 }
 
 TokenPtr Lexer::nextNumber() {
-    char c = get();
-    auto frac = [&] {
-        size_t start = tokPos;
-        size_t startLine = line;
-        size_t startColumn = column;
-        auto decimal = "0." + nextDecimalStr();
-        return box<token::FloatConst>(std::stof(decimal), startLine,
-                                      startColumn, start);
+    size_t start = tokPos;
+    size_t startLine = line;
+    size_t startColumn = column;
+    std::string text;
+    bool isFloat = false;
+
+    auto takeDigits = [&](auto pred) {
+        bool any = false;
+        while (pred(peek())) {
+            text += get();
+            any = true;
+        }
+        return any;
     };
-    if (c == '0') {
-        if (peek() == 'x') {
-            get();
-            return nextHexadecimal();
-        } else if (peek() == '.') {
-            get();
-            return frac();
+
+    if (peek() == '.') {
+        isFloat = true;
+        text += get();
+        takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); });
+    } else if (peek() == '0') {
+        text += get();
+        if (peek() == 'x' || peek() == 'X') {
+            text += get();
+            bool hasDigits = takeDigits([](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)); });
+            if (peek() == '.') {
+                isFloat = true;
+                text += get();
+                hasDigits = takeDigits([](char ch) { return std::isxdigit(static_cast<unsigned char>(ch)); }) || hasDigits;
+            }
+            if (!hasDigits) {
+                throw newError("Unexpected hexadecimal number");
+            }
+            if (peek() == 'p' || peek() == 'P') {
+                isFloat = true;
+                text += get();
+                if (peek() == '+' || peek() == '-') {
+                    text += get();
+                }
+                if (!takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); })) {
+                    throw newError("Unexpected hexadecimal float exponent");
+                }
+            }
         } else {
-            return nextOctal();
+            takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); });
         }
-    } else if (c == '.') {
-        return frac();
     } else {
-        unget();
-        size_t start = tokPos;
-        size_t startLine = line;
-        size_t startColumn = column;
-        auto intPart = nextDecimalStr();
-        if (peek() == '.') {
-            get();
-            auto decimal = intPart + "." + nextDecimalStr();
-            return box<token::FloatConst>(std::stof(decimal), startLine,
-                                          startColumn, start);
-        } else {
-            return box<token::IntConst>(std::stoi(intPart), startLine,
-                                        startColumn, start);
+        takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); });
+    }
+
+    if (peek() == '.') {
+        isFloat = true;
+        text += get();
+        takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); });
+    }
+
+    if (peek() == 'e' || peek() == 'E') {
+        isFloat = true;
+        text += get();
+        if (peek() == '+' || peek() == '-') {
+            text += get();
         }
+        if (!takeDigits([](char ch) { return std::isdigit(static_cast<unsigned char>(ch)); })) {
+            throw newError("Unexpected float exponent");
+        }
+    }
+
+    try {
+        if (isFloat) {
+            return box<token::FloatConst>(std::strtof(text.c_str(), nullptr), startLine, startColumn, start);
+        }
+        int base = 10;
+        if (text.size() > 1 && text[0] == '0') {
+            base = 8;
+            if (text.size() > 2 && (text[1] == 'x' || text[1] == 'X')) {
+                base = 16;
+            }
+        }
+        return box<token::IntConst>(static_cast<int>(std::stoll(text, nullptr, base)), startLine, startColumn, start);
+    } catch (const std::exception&) {
+        throw newError("Invalid numeric literal: " + text);
     }
 }
 

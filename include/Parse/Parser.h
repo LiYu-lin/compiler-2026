@@ -130,7 +130,11 @@ public:
         if (std::holds_alternative<Error>(result)) {
             throw std::get<Error>(result);
         } else {
-            return std::get<Pure<T>>(result).value;
+            auto pure = std::get<Pure<T>>(result);
+            if (*pure.state != nullptr) {
+                throw ParserError::unexpectedToken(pure.state);
+            }
+            return pure.value;
         }
     }
 

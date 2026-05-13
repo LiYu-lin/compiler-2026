@@ -25,9 +25,14 @@ public:
 
         std::string s;
         if (function->shouldSaveReturnAddress()) {
-            s += "ld ra, " +
-                 std::to_string(function->getReturnAddressOffsetFromFixedFrameBase()) +
-                 "(sp)\n\t";
+            auto offset = static_cast<int32_t>(function->getReturnAddressOffsetFromFixedFrameBase());
+            if (fitsSigned12(offset)) {
+                s += "ld ra, " + std::to_string(offset) + "(sp)\n\t";
+            } else {
+                s += "li t0, " + std::to_string(offset) + "\n\t";
+                s += "add t0, sp, t0\n\t";
+                s += "ld ra, 0(t0)\n\t";
+            }
         }
 
         if (fixedBytes <= 2047) {
@@ -59,8 +64,17 @@ public:
     std::string output() const override {
         auto offset = static_cast<int32_t>(
             function->getStackFrameSize() + static_cast<size_t>(argNo - 8) * 4);
-        return std::string(isFloat ? "flw " : "lw ") +
-               rd->toString() + ", " + std::to_string(offset) + "(sp)\n";
+        auto op = std::string(isFloat ? "flw " : "lw ");
+        if (fitsSigned12(offset)) {
+            return op + rd->toString() + ", " + std::to_string(offset) + "(sp)\n";
+        }
+
+        auto scratch = chooseScratchRegister({"sp"});
+        std::string s;
+        s += "li " + scratch + ", " + std::to_string(offset) + "\n\t";
+        s += "add " + scratch + ", sp, " + scratch + "\n\t";
+        s += op + rd->toString() + ", 0(" + scratch + ")\n";
+        return s;
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
@@ -75,6 +89,17 @@ public:
 };
 
 AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
+    if (auto *allocaInst = dynamic_cast<IR::AllocaInstruction*>(value)) {
+        auto temp = VirtualRegister::createTemp(false);
+        block->addInstruction(std::make_shared<IInstruction>(
+            InstructionTy::ADDI,
+            temp,
+            VirtualRegister::createStackPointerRef(),
+            std::make_shared<Immediate>(static_cast<int32_t>(
+                block->getParentFunction()->getAllocaOffset(allocaInst)))));
+        return temp;
+    }
+
     if (auto *arg = dynamic_cast<IR::Argument*>(value)) {
         if (arg->getArgNo() >= 8) {
             auto temp = VirtualRegister::createTemp(arg->getType()->isFloatTy());
@@ -288,25 +313,34 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
 }
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElementPtrInstruction* inst) {
-    auto base = materializeValue(this, inst->getOperand(0));
+    AnyRegister base;
+    if (auto *allocaInst = dynamic_cast<IR::AllocaInstruction*>(inst->getOperand(0))) {
+        base = VirtualRegister::createTemp(false);
+        addInstruction(std::make_shared<IInstruction>(
+            InstructionTy::ADDI,
+            base,
+            VirtualRegister::createStackPointerRef(),
+            std::make_shared<Immediate>(static_cast<int32_t>(parentFunction->getAllocaOffset(allocaInst)))));
+    } else {
+        base = materializeValue(this, inst->getOperand(0));
+    }
     auto result = VirtualRegister::create(inst, inst->getType()->isFloatTy());
     std::vector<IR::Value*> indices = inst->getIndices();
-    
-    // 计算偏移�?
+
     auto offset = VirtualRegister::createTemp(false);
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
         offset,
         VirtualRegister::createZero(),
         std::make_shared<Immediate>(0)));
-    
-    for (size_t i = 0; i < indices.size(); ++i) {
-        auto index = materializeValue(this, indices[i]);
+
+    IR::pType indexedType = inst->getOperand(0)->getType()->getPointerBase();
+    for (auto *indexValue : indices) {
+        auto index = materializeValue(this, indexValue);
         auto temp = VirtualRegister::createTemp(false);
-        
-        // 计算当前维度的偏�?
-        if (i == 0) {
-            // 第一维直接使用索�?
+        int elementBytes = static_cast<int>(indexedType->size());
+
+        if (elementBytes == 1) {
             addInstruction(std::make_shared<RInstruction>(
                 InstructionTy::ADD,
                 offset,
@@ -318,25 +352,22 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
                 InstructionTy::ADDI,
                 size,
                 VirtualRegister::createZero(),
-                std::make_shared<Immediate>(static_cast<int32_t>(
-                    inst->getType()->isArrayTy() ? 
-                    static_cast<const IR::ArrayType*>(inst->getType())->getElementType()->size() : 
-                    inst->getType()->size()))));
+                std::make_shared<Immediate>(elementBytes)));
             addInstruction(std::make_shared<RInstruction>(
                 InstructionTy::MUL,
                 temp,
                 index,
                 size));
-                
             addInstruction(std::make_shared<RInstruction>(
                 InstructionTy::ADD,
                 offset,
                 offset,
                 temp));
         }
+
+        indexedType = indexedType->getBase();
     }
-    
-    // 最终地址计算
+
     return std::make_shared<RInstruction>(
         InstructionTy::ADD,
         result,
@@ -456,13 +487,17 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCastInstruction(IR::CastInstr
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstruction* inst) {
     auto callArgs = inst->getArgs();
+    std::vector<AnyRegister> argRegs;
+    argRegs.reserve(callArgs.size());
+    for (auto *arg : callArgs) {
+        argRegs.push_back(materializeValue(this, arg));
+    }
 
     for (size_t i = 0; i < callArgs.size() && i < 8; ++i) {
-        auto src = materializeValue(this, callArgs[i]);
         AnyRegister dst = PhysicalRegister::getParamReg(static_cast<int>(i), callArgs[i]->getType()->isFloatTy());
         addInstruction(createPseudoInstruction(
             callArgs[i]->getType()->isFloatTy() ? InstructionTy::FMV_S : InstructionTy::MV,
-            {dst, src}));
+            {dst, argRegs[i]}));
     }
 
     const int extraArgBytes = callArgs.size() > 8
@@ -481,11 +516,10 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
         std::make_shared<Immediate>(-callFrameBytes)));
 
     for (size_t i = 8; i < callArgs.size(); ++i) {
-        auto src = materializeValue(this, callArgs[i]);
         addInstruction(std::make_shared<SInstruction>(
             callArgs[i]->getType()->isFloatTy() ? InstructionTy::FSW : InstructionTy::SW,
             VirtualRegister::createStackPointerRef(),
-            src,
+            argRegs[i],
             std::make_shared<Immediate>(static_cast<int32_t>((i - 8) * 4))));
     }
 
@@ -615,6 +649,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruc
 
 
 }
+
 
 
 
