@@ -3,6 +3,7 @@
 #include "Instructions.h"
 #include "OpRegister.h"
 #include <memory>
+#include <cstring>
 
 namespace backend {
 
@@ -22,11 +23,20 @@ AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
     }
 
     if (auto floatConst = dynamic_cast<IR::ConstantFloat*>(value)) {
-        auto temp = VirtualRegister::createTemp(true);
+        int32_t bits = 0;
+        float raw = floatConst->getValue();
+        std::memcpy(&bits, &raw, sizeof(bits));
+        auto intTemp = VirtualRegister::createTemp(false);
+        auto floatTemp = VirtualRegister::createTemp(true);
         block->addInstruction(createPseudoInstruction(
             InstructionTy::LI,
-            {temp, std::make_shared<Immediate>(static_cast<int32_t>(floatConst->getValue()))}));
-        return temp;
+            {intTemp, std::make_shared<Immediate>(bits)}));
+        block->addInstruction(std::make_shared<RInstruction>(
+            InstructionTy::FMV_W_X,
+            floatTemp,
+            intTemp,
+            nullptr));
+        return floatTemp;
     }
 
     return VirtualRegister::create(value, value->getType()->isFloatTy());
@@ -384,11 +394,8 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCastInstruction(IR::CastInstr
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstruction* inst) {
     auto callArgs = inst->getArgs();
-    if (callArgs.size() > 8) {
-        throw std::runtime_error("More than 8 call arguments are not supported yet");
-    }
 
-    for (size_t i = 0; i < callArgs.size(); ++i) {
+    for (size_t i = 0; i < callArgs.size() && i < 8; ++i) {
         auto src = materializeValue(this, callArgs[i]);
         AnyRegister dst = PhysicalRegister::getParamReg(static_cast<int>(i), callArgs[i]->getType()->isFloatTy());
         addInstruction(createPseudoInstruction(
@@ -396,24 +403,40 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             {dst, src}));
     }
 
+    const int extraArgBytes = callArgs.size() > 8
+        ? static_cast<int>((callArgs.size() - 8) * 4)
+        : 0;
+    const int saveBytes = 32;
+    const int callFrameBytes = ((saveBytes + extraArgBytes + 15) / 16) * 16;
+
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
         VirtualRegister::createStackPointerRef(),
         VirtualRegister::createStackPointerRef(),
-        std::make_shared<Immediate>(-32)));
+        std::make_shared<Immediate>(-callFrameBytes)));
+
+    for (size_t i = 8; i < callArgs.size(); ++i) {
+        auto src = materializeValue(this, callArgs[i]);
+        addInstruction(std::make_shared<SInstruction>(
+            callArgs[i]->getType()->isFloatTy() ? InstructionTy::FSW : InstructionTy::SW,
+            VirtualRegister::createStackPointerRef(),
+            src,
+            std::make_shared<Immediate>(static_cast<int32_t>((i - 8) * 4))));
+    }
+
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
             InstructionTy::SW,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>((reg - 5) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 4)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
             InstructionTy::SW,
             VirtualRegister::createStackPointerRef(),
             PhysicalRegister::get(reg),
-            std::make_shared<Immediate>((reg - 25) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 4)));
     }
 
     addInstruction(std::make_shared<Call>(
@@ -426,20 +449,20 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
             InstructionTy::LW,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>((reg - 5) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 5) * 4)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
             InstructionTy::LW,
             PhysicalRegister::get(reg),
             VirtualRegister::createStackPointerRef(),
-            std::make_shared<Immediate>((reg - 25) * 4)));
+            std::make_shared<Immediate>(extraArgBytes + (reg - 25) * 4)));
     }
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
         VirtualRegister::createStackPointerRef(),
         VirtualRegister::createStackPointerRef(),
-        std::make_shared<Immediate>(32)));
+        std::make_shared<Immediate>(callFrameBytes)));
 
     if (!inst->getType()->isVoidTy()) {
         auto retReg = VirtualRegister::create(inst, inst->getType()->isFloatTy());
@@ -450,7 +473,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
 
     return nullptr;
 }
-
 std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruction* inst) {
     auto lhs = materializeValue(this, inst->getOperand(0));
     auto rhs = materializeValue(this, inst->getOperand(1));
@@ -500,3 +522,5 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruc
 
 
 }
+
+

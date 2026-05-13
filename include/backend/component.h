@@ -198,7 +198,7 @@ public:
 private:
     void initializeArrayData(IR::ConstantArray* array) {
         auto arrayType = array->getType();
-        auto baseType = arrayType->getPointerBase();
+        auto baseType = arrayType->getArrayBase();
         int elementSize = baseType->size() / arrayType->getArraySize();
 
         int lastInitIndex = -1;
@@ -559,3 +559,4 @@ private:
 };
 
 } // namespace backend
+

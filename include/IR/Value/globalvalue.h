@@ -122,13 +122,13 @@ namespace IR
 
         static GlobalVariable *create(pType type, std::string name, Constant *initializer, bool isConstant = false)
         {
-            auto pointTy = PointerType::getPointerType(type);
+            auto pointTy = type->isPointerTy() ? type : PointerType::getPointerType(type);
             return new GlobalVariable(pointTy, name, initializer, isConstant);
         }
 
         static GlobalVariable *create(pType type, std::string name, bool isConstant = false)
         {
-            auto pointTy = PointerType::getPointerType(type);
+            auto pointTy = type->isPointerTy() ? type : PointerType::getPointerType(type);
             return new GlobalVariable(pointTy, name, isConstant);
         }
     };

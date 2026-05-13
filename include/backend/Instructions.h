@@ -173,7 +173,7 @@ public:
         : ty(ty), rd(rd), rs1(rs1), rs2(rs2) {
         reg_def_push_back(rd);
         reg_use_push_back(rs1);
-        reg_use_push_back(rs2);
+        if (rs2) reg_use_push_back(rs2);
     }
     InstType getInstType() const override { return InstType::R; }
     bool isLoad() const override { 
@@ -185,6 +185,11 @@ public:
     bool isReturn() const override { return ty == InstructionTy::RET; }
     
     std::string output() const override {
+        if (!rs2) {
+            return std::string(RiscVTypeName(ty)) + " " +
+                   rd->toString() + ", " +
+                   rs1->toString() + "\n";
+        }
         return std::string(RiscVTypeName(ty)) + " " +
                rd->toString() + ", " +
                rs1->toString() + ", " +
@@ -220,7 +225,7 @@ public:
         };
         tryReplace(rd);
         tryReplace(rs1);
-        tryReplace(rs2);
+        if (rs2) tryReplace(rs2);
     }
 };
 
@@ -325,7 +330,7 @@ public:
     SInstruction(InstructionTy ty, AnyRegister rs1, AnyRegister rs2, pImmediate imm)
         : ty(ty), rs1(rs1), rs2(rs2), imm(imm) {
         reg_use_push_back(rs1);
-        reg_use_push_back(rs2);
+        if (rs2) reg_use_push_back(rs2);
     }
     InstType getInstType() const override { return InstType::S; }
     
@@ -368,7 +373,7 @@ public:
             }
         };
         tryReplace(rs1);
-        tryReplace(rs2);
+        if (rs2) tryReplace(rs2);
     }
 };
 
@@ -434,7 +439,7 @@ public:
             }
         };
         tryReplace(rs1);
-        tryReplace(rs2);
+        if (rs2) tryReplace(rs2);
     }
 };
 
@@ -779,6 +784,20 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::DIVUW: return "divuw";
         case InstructionTy::REMW: return "remw";
         case InstructionTy::REMUW: return "remuw";
+        case InstructionTy::FLW: return "flw";
+        case InstructionTy::FSW: return "fsw";
+        case InstructionTy::FADD_S: return "fadd.s";
+        case InstructionTy::FSUB_S: return "fsub.s";
+        case InstructionTy::FMUL_S: return "fmul.s";
+        case InstructionTy::FDIV_S: return "fdiv.s";
+        case InstructionTy::FSGNJ_S: return "fsgnj.s";
+        case InstructionTy::FSGNJN_S: return "fsgnjn.s";
+        case InstructionTy::FEQ_S: return "feq.s";
+        case InstructionTy::FLT_S: return "flt.s";
+        case InstructionTy::FLE_S: return "fle.s";
+        case InstructionTy::FCVT_W_S: return "fcvt.w.s";
+        case InstructionTy::FCVT_S_W: return "fcvt.s.w";
+        case InstructionTy::FMV_W_X: return "fmv.w.x";
         // 伪指�?
         case InstructionTy::CALL: return "call";
         case InstructionTy::RET: return "ret";
@@ -802,3 +821,4 @@ inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty,
 }
 
 } // namespace backend
+

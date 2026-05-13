@@ -152,6 +152,7 @@ private:
     size_t line = 1;
     size_t column = 1;
     size_t tokPos = 0;
+    std::vector<std::pair<size_t, size_t>> positionHistory;
 
     std::string readAll(std::stringstream &buffer);
     char peek();

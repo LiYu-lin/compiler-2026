@@ -156,9 +156,16 @@ class Visitor {
     IR::BasicBlock *currentBB = nullptr;
     frontend::TokenPtrs token_buffer;
     IR::Value* getLValPointer(const ast::LVal &node);
+    IR::Value* coerceToType(IR::Value *value, IR::pType targetType);
+    IR::Value* coerceBinaryOperands(IR::Value *&left, IR::Value *&right);
     IR::Value* coerceToBoolValue(IR::Value *value);
+    IR::pType buildArrayType(IR::pType elementType, const std::vector<int> &dims);
+    IR::pType getFuncParamType(const ast::FuncFParam &node);
+    IR::Constant* buildConstInitializer(const ast::ConstInitVal &node, IR::pType targetType);
+    IR::Constant* buildInitInitializer(const ast::InitVal &node, IR::pType targetType);
     bool currentBlockHasTerminator() const;
     void emitConditionalBranch(const ast::ASTNode &node, IR::BasicBlock *trueBB, IR::BasicBlock *falseBB);
+    void registerBuiltinFunctions();
     public:
 
     IR::pType getTypeFromBType(ast::ASTNode::BType btype);
@@ -211,7 +218,9 @@ class Visitor {
     IR::Value* visit(const ast::LOrExp::LOrExpOp &node);
     IR::Value* visit(const ast::ConstExp &node);
     
-    Visitor(IR::Module &module) : module(module), builder() {}
+    Visitor(IR::Module &module) : module(module), builder() { registerBuiltinFunctions(); }
 };
 
 } 
+
+

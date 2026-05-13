@@ -182,7 +182,10 @@ Parser<ast::ASTNodePtr> stmt_if() {
         .then(symbol("("))
         .then(cond())
         .with(symbol(")"))
-        .extend(block().and_(symbol("else").then(block()).opt()))
+        .extend(Parser<ast::ASTNodePtr>::lazy([]() { return stmt(); })
+                    .and_(symbol("else")
+                              .then(Parser<ast::ASTNodePtr>::lazy([]() { return stmt(); }))
+                              .opt()))
         .map<ast::ASTNodePtr>([](auto t) {
             auto cond = std::get<0>(t);
             auto block = std::get<1>(t);
