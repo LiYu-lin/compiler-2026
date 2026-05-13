@@ -10,6 +10,13 @@ namespace backend {
 namespace {
 
 AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
+    if (auto globalVar = dynamic_cast<IR::GlobalVariable*>(value)) {
+        auto temp = VirtualRegister::createTemp(false);
+        block->addInstruction(createPseudoInstruction(
+            InstructionTy::LA,
+            {temp, std::make_shared<Label>(sanitizeSymbolName(globalVar->getIRName()), true)}));
+        return temp;
+    }
     if (auto intConst = dynamic_cast<IR::ConstantInt32*>(value)) {
         if (intConst->getValue() == 0) {
             return VirtualRegister::createZero();
@@ -522,5 +529,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruc
 
 
 }
+
 
 

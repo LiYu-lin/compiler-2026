@@ -56,7 +56,7 @@ enum class InstructionTy {
     // RV32D + RV64D
     FLD, FSD, FMV_X_D, FMV_D_X,
     // 伪指�?
-    CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI,
+    CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI, LA,
     CMOV,    
     NOT,     
     SEQZ,    
@@ -581,6 +581,7 @@ public:
             case InstructionTy::MV:
             case InstructionTy::FMV_S:
             case InstructionTy::LI:
+            case InstructionTy::LA:
             case InstructionTy::SEQZ:
             case InstructionTy::SNEZ:
             case InstructionTy::NOT:
@@ -811,6 +812,7 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SEXT_W: return "sext.w";
         case InstructionTy::ZEXT_W: return "zext.w";
         case InstructionTy::LI: return "li";
+        case InstructionTy::LA: return "la";
         default: return "unknown";
     }
 }
@@ -821,4 +823,5 @@ inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty,
 }
 
 } // namespace backend
+
 

@@ -533,6 +533,8 @@ public:
             s += global->output();
         }
         
+        s += "\t.text\n";
+        
         // 输出函数
         for (auto& func : functions) {
             if (!func->isLibFunc()) {
@@ -559,4 +561,6 @@ private:
 };
 
 } // namespace backend
+
+
 
