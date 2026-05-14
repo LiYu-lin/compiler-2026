@@ -163,6 +163,9 @@ class Visitor {
     IR::pType getFuncParamType(const ast::FuncFParam &node);
     IR::Constant* buildConstInitializer(const ast::ConstInitVal &node, IR::pType targetType);
     IR::Constant* buildInitInitializer(const ast::InitVal &node, IR::pType targetType);
+    void flattenConstInitializer(const ast::ConstInitVal &node, IR::pType targetType, std::vector<IR::Constant*> &flat, size_t &cursor);
+    void flattenInitInitializer(const ast::InitVal &node, IR::pType targetType, std::vector<IR::Constant*> &flat, size_t &cursor);
+    IR::Constant* buildArrayConstantFromFlat(IR::pType targetType, const std::vector<IR::Constant*> &flat, size_t &cursor);
     bool currentBlockHasTerminator() const;
     void emitConditionalBranch(const ast::ASTNode &node, IR::BasicBlock *trueBB, IR::BasicBlock *falseBB);
     void registerBuiltinFunctions();

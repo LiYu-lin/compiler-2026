@@ -75,7 +75,7 @@ inline bool isIntImmediate(const pImmediate& imm) {
 }
 
 inline std::string chooseScratchRegister(std::initializer_list<std::string> avoid) {
-    const char* candidates[] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6"};
+    const char* candidates[] = {"t6", "t5", "t4", "t3", "t2", "t1", "t0"};
     for (auto* candidate : candidates) {
         bool used = false;
         for (const auto& reg : avoid) {
@@ -212,6 +212,12 @@ public:
     
     std::string output() const override {
         if (!rs2) {
+            if (ty == InstructionTy::FCVT_W_S || ty == InstructionTy::FCVT_WU_S ||
+                ty == InstructionTy::FCVT_L_S || ty == InstructionTy::FCVT_LU_S) {
+                return std::string(RiscVTypeName(ty)) + " " +
+                       rd->toString() + ", " +
+                       rs1->toString() + ", rtz\n";
+            }
             return std::string(RiscVTypeName(ty)) + " " +
                    rd->toString() + ", " +
                    rs1->toString() + "\n";

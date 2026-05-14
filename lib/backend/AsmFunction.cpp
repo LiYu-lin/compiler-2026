@@ -9,9 +9,30 @@ namespace backend {
     std::unordered_map<rRegister, size_t> spillOffsets;
 
     namespace {
-        void replaceRegisterOperand(const std::shared_ptr<Instruction>& inst, AnyRegister oldReg, AnyRegister newReg) {
+        bool operandIndexIsUse(InstType type, int index) {
+            switch (type) {
+                case InstType::R:
+                    return index == 1 || index == 2;
+                case InstType::I:
+                    return index == 1;
+                case InstType::S:
+                case InstType::B:
+                    return index == 0 || index == 1;
+                case InstType::J:
+                case InstType::U:
+                    return false;
+                case InstType::Pseudo:
+                    return index > 0;
+            }
+            return false;
+        }
+
+        void replaceRegisterOperand(const std::shared_ptr<Instruction>& inst, AnyRegister oldReg, AnyRegister newReg, bool replaceDefs = true) {
             for (int i = 0; i < 4; ++i) {
                 try {
+                    if (!replaceDefs && !operandIndexIsUse(inst->getInstType(), i)) {
+                        continue;
+                    }
                     auto operand = inst->getOperand(i);
                     if (std::holds_alternative<AnyRegister>(operand) && std::get<AnyRegister>(operand) == oldReg) {
                         inst->setOperand(i, newReg);
@@ -21,7 +42,6 @@ namespace backend {
                 }
             }
         }
-
         pRegister getHintedPhysicalRegister(const rRegister& reg) {
             if (!reg) {
                 return nullptr;
@@ -196,7 +216,7 @@ namespace backend {
         if (regs.empty()) {
             const int allocatableRegs[] = {
                 5, 6, 7,
-                28, 29, 30, 31
+                28, 29, 30
             };
             for (int reg : allocatableRegs) {
                 regs.push_back(PhysicalRegister::get(reg, isFloat));
@@ -328,7 +348,7 @@ namespace backend {
                             if (reg == spilledReg) {
                                 AnyRegister tempReg = PhysicalRegister::get(5, spilledReg->isFloatReg());
                                 // 根据寄存器类型选择正确的指令类??
-                                InstructionTy loadTy = spilledReg->isFloatReg() ? InstructionTy::FLW : InstructionTy::LW;
+                                InstructionTy loadTy = spilledReg->isFloatReg() ? InstructionTy::FLW : InstructionTy::LD;
                                 auto loadInst = std::make_shared<IInstruction>(
                                     loadTy,
                                     tempReg, 
@@ -337,7 +357,7 @@ namespace backend {
                                 );
                                 block->insertBefore(inst, loadInst);
                                 inst->replaceRegisterUse(spilledReg, tempReg);
-                                replaceRegisterOperand(inst, spilledReg, tempReg);
+                                replaceRegisterOperand(inst, spilledReg, tempReg, false);
                             }
                         }
                         
@@ -346,7 +366,7 @@ namespace backend {
                             if (reg == spilledReg) {
                                 AnyRegister tempReg = PhysicalRegister::get(5, spilledReg->isFloatReg());
                                 // 根据寄存器类型选择正确的指令类??
-                                InstructionTy storeTy = spilledReg->isFloatReg() ? InstructionTy::FSW : InstructionTy::SW;
+                                InstructionTy storeTy = spilledReg->isFloatReg() ? InstructionTy::FSW : InstructionTy::SD;
                                 auto storeInst = std::make_shared<SInstruction>(
                                     storeTy,
                                     PhysicalRegister::get(2),

@@ -107,6 +107,119 @@ IR::Value* Visitor::coerceBinaryOperands(IR::Value *&left, IR::Value *&right) {
     return left;
 }
 
+static size_t getScalarElementCount(IR::pType type) {
+    if (!type->isArrayTy()) {
+        return 1;
+    }
+    return static_cast<size_t>(type->getArraySize()) *
+           getScalarElementCount(type->getArrayBase());
+}
+
+static IR::pType chooseInitializerSubType(IR::pType targetType, size_t cursor) {
+    IR::pType selected = targetType;
+    IR::pType current = targetType;
+    while (current->isArrayTy() && current->getArrayBase()->isArrayTy()) {
+        auto child = current->getArrayBase();
+        auto childLeaves = getScalarElementCount(child);
+        if (childLeaves != 0 && cursor % childLeaves == 0) {
+            selected = child;
+        }
+        current = child;
+    }
+    return selected;
+}
+
+IR::Constant* Visitor::buildArrayConstantFromFlat(
+    IR::pType targetType,
+    const std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (!targetType->isArrayTy()) {
+        if (cursor < flat.size() && flat[cursor]) {
+            return flat[cursor++];
+        }
+        ++cursor;
+        return IR::Constant::getZeroValueForType(targetType);
+    }
+
+    auto *array = IR::ConstantArray::get(targetType);
+    auto elemType = targetType->getArrayBase();
+    for (int i = 0; i < targetType->getArraySize(); ++i) {
+        auto before = cursor;
+        auto *init = buildArrayConstantFromFlat(elemType, flat, cursor);
+        if (init && !(init->isConstantInt32() && static_cast<IR::ConstantInt32*>(init)->getValue() == 0)) {
+            array->insertOperand(static_cast<unsigned int>(i), init);
+        } else if (init && init->isConstantFloat() && static_cast<IR::ConstantFloat*>(init)->getValue() != 0.0f) {
+            array->insertOperand(static_cast<unsigned int>(i), init);
+        }
+        if (cursor == before) {
+            ++cursor;
+        }
+    }
+    return array;
+}
+
+void Visitor::flattenConstInitializer(
+    const ast::ConstInitVal &node,
+    IR::pType targetType,
+    std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
+        auto value = std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
+        value = coerceToType(value, targetType->isArrayTy() ? targetType->getBase() : targetType);
+        if (cursor < flat.size()) {
+            flat[cursor++] = dynamic_cast<IR::Constant*>(value);
+        }
+        return;
+    }
+
+    auto values = std::get<ast::ASTNodePtrs>(node.constInitVal);
+    for (auto &value : values) {
+        auto *child = dynamic_cast<ast::ConstInitVal*>(value.get());
+        if (!child || cursor >= flat.size()) {
+            continue;
+        }
+        if (std::holds_alternative<ast::ASTNodePtr>(child->constInitVal)) {
+            flattenConstInitializer(*child, targetType->getBase(), flat, cursor);
+        } else {
+            auto subType = chooseInitializerSubType(targetType, cursor);
+            auto start = cursor;
+            flattenConstInitializer(*child, subType, flat, cursor);
+            cursor = start + getScalarElementCount(subType);
+        }
+    }
+}
+
+void Visitor::flattenInitInitializer(
+    const ast::InitVal &node,
+    IR::pType targetType,
+    std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (std::holds_alternative<ast::ASTNodePtr>(node.initVal)) {
+        auto value = std::get<ast::ASTNodePtr>(node.initVal)->accept(*this);
+        value = coerceToType(value, targetType->isArrayTy() ? targetType->getBase() : targetType);
+        if (cursor < flat.size()) {
+            flat[cursor++] = dynamic_cast<IR::Constant*>(value);
+        }
+        return;
+    }
+
+    auto values = std::get<ast::ASTNodePtrs>(node.initVal);
+    for (auto &value : values) {
+        auto *child = dynamic_cast<ast::InitVal*>(value.get());
+        if (!child || cursor >= flat.size()) {
+            continue;
+        }
+        if (std::holds_alternative<ast::ASTNodePtr>(child->initVal)) {
+            flattenInitInitializer(*child, targetType->getBase(), flat, cursor);
+        } else {
+            auto subType = chooseInitializerSubType(targetType, cursor);
+            auto start = cursor;
+            flattenInitInitializer(*child, subType, flat, cursor);
+            cursor = start + getScalarElementCount(subType);
+        }
+    }
+}
+
 IR::Constant* Visitor::buildConstInitializer(const ast::ConstInitVal &node, IR::pType targetType) {
     if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
         auto value = std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
@@ -118,17 +231,11 @@ IR::Constant* Visitor::buildConstInitializer(const ast::ConstInitVal &node, IR::
         return IR::Constant::getZeroValueForType(targetType);
     }
 
-    auto *array = IR::ConstantArray::get(targetType);
-    auto values = std::get<ast::ASTNodePtrs>(node.constInitVal);
-    auto elemType = targetType->getArrayBase();
-    for (size_t i = 0; i < values.size() && i < static_cast<size_t>(targetType->getArraySize()); ++i) {
-        if (auto *child = dynamic_cast<ast::ConstInitVal*>(values[i].get())) {
-            if (auto *init = buildConstInitializer(*child, elemType)) {
-                array->insertOperand(static_cast<unsigned int>(i), init);
-            }
-        }
-    }
-    return array;
+    std::vector<IR::Constant*> flat(getScalarElementCount(targetType), nullptr);
+    size_t cursor = 0;
+    flattenConstInitializer(node, targetType, flat, cursor);
+    cursor = 0;
+    return buildArrayConstantFromFlat(targetType, flat, cursor);
 }
 
 IR::Constant* Visitor::buildInitInitializer(const ast::InitVal &node, IR::pType targetType) {
@@ -142,17 +249,11 @@ IR::Constant* Visitor::buildInitInitializer(const ast::InitVal &node, IR::pType 
         return IR::Constant::getZeroValueForType(targetType);
     }
 
-    auto *array = IR::ConstantArray::get(targetType);
-    auto values = std::get<ast::ASTNodePtrs>(node.initVal);
-    auto elemType = targetType->getArrayBase();
-    for (size_t i = 0; i < values.size() && i < static_cast<size_t>(targetType->getArraySize()); ++i) {
-        if (auto *child = dynamic_cast<ast::InitVal*>(values[i].get())) {
-            if (auto *init = buildInitInitializer(*child, elemType)) {
-                array->insertOperand(static_cast<unsigned int>(i), init);
-            }
-        }
-    }
-    return array;
+    std::vector<IR::Constant*> flat(getScalarElementCount(targetType), nullptr);
+    size_t cursor = 0;
+    flattenInitInitializer(node, targetType, flat, cursor);
+    cursor = 0;
+    return buildArrayConstantFromFlat(targetType, flat, cursor);
 }
 
 IR::Value* Visitor::getLValPointer(const ast::LVal &node) {
@@ -526,6 +627,13 @@ IR::Value* Visitor::visit(const ast::FuncDef &node) {
     }
     
     node.block->accept(*this);
+    if (!currentBlockHasTerminator()) {
+        if (retType->isVoidTy()) {
+            builder.CreateRetVoid(currentFunction);
+        } else {
+            builder.CreateRet(IR::Constant::getZeroValueForType(retType), currentFunction);
+        }
+    }
     
     currentFunction = nullptr;
     symbolTable.exitScope();

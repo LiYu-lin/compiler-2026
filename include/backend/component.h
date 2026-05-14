@@ -199,7 +199,7 @@ private:
     void initializeArrayData(IR::ConstantArray* array) {
         auto arrayType = array->getType();
         auto baseType = arrayType->getArrayBase();
-        int elementSize = baseType->size() / arrayType->getArraySize();
+        int elementSize = baseType->size();
 
         int lastInitIndex = -1;
         for (auto& [index, constant] : array->elements) {
@@ -424,10 +424,10 @@ public:
         return nextStackOffset;
     }
     size_t reserveSpillSlot() {
-        return getAllocatedStackBytes() + (spillSlotCount++ * 4);
+        return getAllocatedStackBytes() + (spillSlotCount++ * 8);
     }
     size_t getFixedFrameBytes() const {
-        size_t total = getAllocatedStackBytes() + spillSlotCount * 4;
+        size_t total = getAllocatedStackBytes() + spillSlotCount * 8;
         if (needsReturnAddressSave) {
             total = alignTo(total, 8) + 8;
         }
@@ -435,7 +435,7 @@ public:
     }
 
     size_t getReturnAddressOffsetFromFixedFrameBase() const {
-        return alignTo(getAllocatedStackBytes() + spillSlotCount * 4, 8);
+        return alignTo(getAllocatedStackBytes() + spillSlotCount * 8, 8);
     }
 
     bool shouldSaveReturnAddress() const {

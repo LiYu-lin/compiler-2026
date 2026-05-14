@@ -11,6 +11,7 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 build
+build-wsl
 compiler.exe
 test/custom/out/
 test/custom/out_py/
