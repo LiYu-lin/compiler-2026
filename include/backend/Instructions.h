@@ -12,7 +12,6 @@
 
 namespace backend {
 
-
 using pImmediate = std::shared_ptr<Immediate>;
 using AnyRegister = std::shared_ptr<Operand>;  
 using OperandVariant = std::variant<
@@ -33,30 +32,22 @@ enum class InstType {
 
 enum class InstructionTy {
     NOP,
-    // RV32I
     LUI, AUIPC, JAL, JALR,
     BEQ, BNE, BLT, BGE, BLTU, BGEU,
     LB, LH, LW, LBU, LHU, SB, SH, SW,
     ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI,
     ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND,
-    // RV64I
     LWU, LD, SD, ADDIW, SLLIW, SRLIW, SRAIW,
     ADDW, SUBW, SLLW, SRLW, SRAW,
-    // RV32M
     MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU,
-    // RV64M 
     MULW, DIVW, DIVUW, REMW, REMUW,
-    // RV32F
     FLW, FSW, FMADD_S, FMSUB_S, FNMADD_S, FNMSUB_S,
     FADD_S, FSUB_S, FMUL_S, FDIV_S, FSQRT_S,
     FSGNJ_S, FSGNJN_S, FSGNJX_S, FMIN_S, FMAX_S,
     FCVT_W_S, FCVT_WU_S, FMV_X_W, FEQ_S, FLT_S, FLE_S,
     FCLASS_S, FCVT_S_W, FCVT_S_WU, FMV_W_X,
-    // RV64F
     FCVT_L_S, FCVT_LU_S, FCVT_S_L, FCVT_S_LU,
-    // RV32D + RV64D
     FLD, FSD, FMV_X_D, FMV_D_X,
-    // 伪指�?
     CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI, LA,
     CMOV,    
     NOT,     
@@ -137,6 +128,7 @@ public:
     std::vector<std::shared_ptr<Operand>> getDefRegisters() const { return regDef; }
     std::vector<std::shared_ptr<Operand>> getUseRegisters() const { return regUse; }
     std::set<rRegister> liveOut;
+    
     template<typename OldRegType, typename NewRegType>
     void replaceRegisterUse(OldRegType oldReg, NewRegType newReg) {
         for (auto& reg : regUse) {
@@ -190,7 +182,6 @@ public:
     }
 };
 
-// R-type
 class RInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd, rs1, rs2;
@@ -202,9 +193,7 @@ public:
         if (rs2) reg_use_push_back(rs2);
     }
     InstType getInstType() const override { return InstType::R; }
-    bool isLoad() const override { 
-        return false; 
-    }
+    bool isLoad() const override { return false; }
     bool isStore() const override { return false; }
     bool isBranch() const override { return false; }
     bool isCall() const override { return ty == InstructionTy::CALL; }
@@ -286,7 +275,6 @@ public:
     }
 };
 
-// rd = rs1 op imm(12)
 class IInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd, rs1;
@@ -363,9 +351,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -377,7 +363,6 @@ public:
     }
 };
 
-// S-type
 class SInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rs1, rs2;
@@ -427,9 +412,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -441,7 +424,6 @@ public:
     }
 };
 
-// B-type指令实现
 class BInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rs1, rs2;
@@ -492,10 +474,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
-        // 然后更新rs1、rs2成员变量
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -507,7 +486,6 @@ public:
     }
 };
 
-// U-type指令实现
 class UInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd;
@@ -549,9 +527,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -562,7 +538,6 @@ public:
     }
 };
 
-// J-type指令实现
 class JInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd;
@@ -583,12 +558,10 @@ public:
     
     std::string output() const override {
         if (ty == InstructionTy::JALR) {
-            // JALR指令格式: jalr rd, offset(rs1)
             return std::string(RiscVTypeName(ty)) + " "
                 + rd->toString() + ", "
                 + label->toString() + "\n";
         } else {
-            // J指令格式: jal rd, offset
             return std::string(RiscVTypeName(ty)) + " "
                 + rd->toString() + ", "
                 + label->toString() + "\n";
@@ -612,7 +585,6 @@ public:
     }
      void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -623,7 +595,6 @@ public:
     }
 };
 
-// 伪指�?
 class PseudoInstruction : public Instruction {
     InstructionTy ty;
     std::vector<OperandVariant> operands;
@@ -676,8 +647,6 @@ public:
     }
     bool isCall() const override { return ty == InstructionTy::CALL; }
     bool isReturn() const override { return ty == InstructionTy::RET; }
-    
-
 
     std::string output() const override {
         std::string result = RiscVTypeName(ty);
@@ -713,7 +682,7 @@ public:
                     auto it = vregToPregMap.find(vreg);
                     if (it != vregToPregMap.end()) {
                         reg = it->second;
-                        op = reg; // 更新variant
+                        op = reg;
                     }
                 }
             }
@@ -734,10 +703,10 @@ public:
         if (retReg) {
             reg_def_push_back(retReg);
         }
+        regDef.push_back(PhysicalRegister::get(1));
     }
     
     InstType getInstType() const override { return InstType::Pseudo; }
-    
     bool isCall() const override { return true; }
     
     std::string output() const override {
@@ -779,11 +748,9 @@ public:
     }
 };
 
-
 inline const char* RiscVTypeName(InstructionTy ty) {
     switch(ty) {
         case InstructionTy::NOP: return "nop";
-        // RV32I
         case InstructionTy::LUI: return "lui";
         case InstructionTy::AUIPC: return "auipc";
         case InstructionTy::JAL: return "jal";
@@ -821,7 +788,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SRA: return "sra";
         case InstructionTy::OR: return "or";
         case InstructionTy::AND: return "and";
-        // RV64I
         case InstructionTy::LWU: return "lwu";
         case InstructionTy::LD: return "ld";
         case InstructionTy::SD: return "sd";
@@ -834,7 +800,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SLLW: return "sllw";
         case InstructionTy::SRLW: return "srlw";
         case InstructionTy::SRAW: return "sraw";
-        // RV32M
         case InstructionTy::MUL: return "mul";
         case InstructionTy::MULH: return "mulh";
         case InstructionTy::MULHSU: return "mulhsu";
@@ -843,7 +808,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::DIVU: return "divu";
         case InstructionTy::REM: return "rem";
         case InstructionTy::REMU: return "remu";
-        // RV64M
         case InstructionTy::MULW: return "mulw";
         case InstructionTy::DIVW: return "divw";
         case InstructionTy::DIVUW: return "divuw";
@@ -863,7 +827,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::FCVT_W_S: return "fcvt.w.s";
         case InstructionTy::FCVT_S_W: return "fcvt.s.w";
         case InstructionTy::FMV_W_X: return "fmv.w.x";
-        // 伪指�?
         case InstructionTy::CALL: return "call";
         case InstructionTy::RET: return "ret";
         case InstructionTy::J: return "j";
@@ -876,7 +839,7 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SEXT_W: return "sext.w";
         case InstructionTy::ZEXT_W: return "zext.w";
         case InstructionTy::LI: return "li";
-        case InstructionTy::LA: return "la";
+        case InstructionTy::LA: return "lla";
         default: return "unknown";
     }
 }
@@ -886,6 +849,4 @@ inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty,
     return std::make_shared<PseudoInstruction>(ty, operands);
 }
 
-} // namespace backend
-
-
+}

@@ -3,6 +3,8 @@
 #include "OpRegister.h"
 #include <memory>
 #include <stack>
+#include <iostream>
+#include <cassert>
 
 namespace backend {
     static std::vector<pRegister> physicalRegs;
@@ -42,6 +44,7 @@ namespace backend {
                 }
             }
         }
+
         pRegister getHintedPhysicalRegister(const rRegister& reg) {
             if (!reg) {
                 return nullptr;
@@ -62,27 +65,22 @@ namespace backend {
             return nullptr;
         }
     }
+
     std::tuple<std::set<rRegister>, std::set<rRegister>> AsmFunction::computeUseDef(const std::unique_ptr<AsmBasicBlock>& block) {
         std::set<rRegister> use_set;
         std::set<rRegister> def_set;
 
-        // 遍历块内的每一条机器指??
         for (auto& instr : block->getInstructions()) {
-            // 首先处理所有源操作??USE)
             for (auto& reg : instr->getUseRegisters()) {
                 if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                    // 如果这个寄存器还没有被定义过(不在def_set??
-                    // 那么它就是在使用一个来自块外的值，属于USE集合
                     if (def_set.find(vreg) == def_set.end()) {
                         use_set.insert(vreg);
                     }
                 }
             }
 
-            // 然后处理所有目标操作数(DEF)
             for (auto& reg : instr->getDefRegisters()) {
                 if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                    // 只要被写入，就加入DEF集合
                     def_set.insert(vreg);
                 }
             }
@@ -90,21 +88,19 @@ namespace backend {
 
         return {use_set, def_set};
     }
+
     std::tuple<std::set<rRegister>, std::set<rRegister>> AsmFunction::computeUseDefForInstruction(const std::shared_ptr<Instruction>& inst) {
         std::set<rRegister> use_set;
         std::set<rRegister> def_set;
 
-        // 处理指令的源操作??USE)
         for (auto& reg : inst->getUseRegisters()) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                // 如果寄存器不在DEF集合中，则加入USE集合
                 if (def_set.find(vreg) == def_set.end()) {
                     use_set.insert(vreg);
                 }
             }
         }
 
-        // 处理指令的目标操作数(DEF)
         for (auto& reg : inst->getDefRegisters()) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 def_set.insert(vreg);
@@ -115,7 +111,6 @@ namespace backend {
     }
 
     void AsmFunction::livenessAnalysis() {
-        // 初始??
         for (auto& block : blocks) {
             block->liveIn.clear();
             block->liveOut.clear();
@@ -125,64 +120,54 @@ namespace backend {
         while (changed) {
             changed = false;
             
-            // 反向遍历所有基本块
             for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
                 auto& block = *it;
                 
-                // 保存旧值用于比??
                 std::set<rRegister> oldIn = block->liveIn;
                 std::set<rRegister> oldOut = block->liveOut;
                 
-                // 计算新的OUT[B] = ??IN[S] (对于所有后继S)
                 block->liveOut.clear();
                 for (auto successor : block->getSuccessors()) {
                     block->liveOut.insert(successor->liveIn.begin(), successor->liveIn.end());
                 }
                 
-                // 计算新的IN[B] = USE[B] ??(OUT[B] - DEF[B])
-                auto [use, def] = computeUseDef(block); // 需要实现这个函??
+                auto [use, def] = computeUseDef(block); 
                 
                 block->liveIn = use;
                 std::set<rRegister> temp;
                 std::set_difference(block->liveOut.begin(), block->liveOut.end(),
-                                def.begin(), def.end(),
-                                std::inserter(temp, temp.begin()));
+                                    def.begin(), def.end(),
+                                    std::inserter(temp, temp.begin()));
                 block->liveIn.insert(temp.begin(), temp.end());
                 
-                // 检查是否变??
                 if (block->liveIn != oldIn || block->liveOut != oldOut) {
                     changed = true;
                 }
             }
-            for (auto& block : blocks) {
-                std::set<rRegister> currentLive = block->liveOut;
+        }
+
+        for (auto& block : blocks) {
+            std::set<rRegister> currentLive = block->liveOut;
+            
+            auto& instructions = block->getInstructions();
+            for (auto it = instructions.rbegin(); it != instructions.rend(); ++it) {
+                auto& inst = *it;
                 
-                // 反向遍历块内的指??
-                auto& instructions = block->getInstructions();
-                for (auto it = instructions.rbegin(); it != instructions.rend(); ++it) {
-                    auto& inst = *it;
-                    
-                    // 1. 设置当前指令的liveOut
-                    inst->liveOut = currentLive;
-                    
-                    // 2. 计算当前指令的USE和DEF
-                    auto [use, def] = computeUseDefForInstruction(inst);
-                    
-                    // 3. 计算前一条指令的活性：IN = USE ??(OUT - DEF)
-                    std::set<rRegister> newLive = use;
-                    std::set<rRegister> temp;
-                    std::set_difference(currentLive.begin(), currentLive.end(),
+                inst->liveOut = currentLive;
+                
+                auto [use, def] = computeUseDefForInstruction(inst);
+                
+                std::set<rRegister> newLive = use;
+                std::set<rRegister> temp;
+                std::set_difference(currentLive.begin(), currentLive.end(),
                                     def.begin(), def.end(),
                                     std::inserter(temp, temp.begin()));
-                    newLive.insert(temp.begin(), temp.end());
-                    
-                    // 4. 为下一条指令准??
-                    currentLive = newLive;
-                }
+                newLive.insert(temp.begin(), temp.end());
                 
-                // 验证：currentLive应该等于block->liveIn
-                assert(currentLive == block->liveIn);
+                currentLive = newLive;
             }
+            
+            assert(currentLive == block->liveIn);
         }
     }  
 
@@ -198,7 +183,7 @@ namespace backend {
                         }
                     }
                 }
-                const auto& live = inst->liveOut; // 你需要在活跃变量分析时填??
+                const auto& live = inst->liveOut; 
                 for (auto it1 = live.begin(); it1 != live.end(); ++it1) {
                     for (auto it2 = std::next(it1); it2 != live.end(); ++it2) {
                         graph.addEdge(*it1, *it2);
@@ -209,7 +194,7 @@ namespace backend {
         return graph;
     }
     
-    std::vector<pRegister>& getAllPhysicalRegisters(bool isFloat = false) {
+    std::vector<pRegister>& getAllPhysicalRegisters(bool isFloat) {
         static std::vector<pRegister> intRegs;
         static std::vector<pRegister> floatRegs;
         auto& regs = isFloat ? floatRegs : intRegs;
@@ -225,17 +210,14 @@ namespace backend {
         return regs;
     }
 
-
     std::unordered_map<rRegister, pRegister> AsmFunction::colorGraph(const InterferenceGraph& graph) {
         std::unordered_map<rRegister, pRegister> coloring;
         std::stack<rRegister> stack;
         
-        // 1. 图简化阶??
         auto workGraph = graph;
         while (!workGraph.nodes().empty()) {
             bool simplified = false;
             
-            // 尝试找到可简化的节点
             for (auto node : workGraph.nodes()) {
                 if (workGraph.neighbors(node).size() < getAllPhysicalRegisters(node->isFloatReg()).size()) {
                     stack.push(node);
@@ -245,15 +227,14 @@ namespace backend {
                 }
             }
             
-            // 如果没有可简化的节点，选择溢出
             if (!simplified) {
                 auto node = workGraph.getMaxDegreeNode();
+                if (!node) break;
                 stack.push(node);
                 workGraph.removeNode(node);
             }
         }
         
-        // 2. 着色阶??
         while (!stack.empty()) {
             auto node = stack.top();
             stack.pop();
@@ -265,7 +246,6 @@ namespace backend {
                 }
             }
             
-            // 找到可用的颜??
             for (auto reg : getAllPhysicalRegisters(node->isFloatReg())) {
                 if (usedColors.count(reg) == 0) {
                     coloring[node] = reg;
@@ -273,7 +253,6 @@ namespace backend {
                 }
             }
             
-            // 如果没有可用颜色，标记为溢出
             if (coloring.count(node) == 0) {
                 markForSpilling(node);
             }
@@ -283,6 +262,64 @@ namespace backend {
     }
 
     void AsmFunction::rewriteInstructions(std::unordered_map<rRegister, pRegister>& vregToPreg) {
+        if (vregToPreg.empty() && !spilledNodes.empty()) {
+            for (const auto& spilledReg : spilledNodes) {
+                if (spillOffsets.count(spilledReg)) continue;
+                size_t spillOffset = reserveSpillSlot();
+                spillOffsets[spilledReg] = spillOffset;
+            }
+
+            for (auto& block : blocks) {
+                auto& instructions = block->getInstructions();
+                std::vector<std::shared_ptr<Instruction>> instructionsToProcess = instructions;
+                
+                for (auto& inst : instructionsToProcess) {
+                    for (auto& reg : inst->getUseRegisters()) {
+                        if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
+                            if (spilledNodes.count(vreg)) {
+                                bool isFloat = vreg->isFloatReg();
+                                bool isPtr = (vreg->getIRValue() && vreg->getIRValue()->getType()->isPointerTy());
+                                auto tempVReg = VirtualRegister::createTemp(isFloat);
+                                InstructionTy loadTy = isFloat ? InstructionTy::FLW : (isPtr ? InstructionTy::LD : InstructionTy::LW);
+                                
+                                auto loadInst = std::make_shared<IInstruction>(
+                                    loadTy,
+                                    tempVReg,
+                                    PhysicalRegister::get(2),
+                                    std::make_shared<Immediate>(static_cast<int32_t>(spillOffsets[vreg]))
+                                );
+                                block->insertBefore(inst, loadInst);
+                                inst->replaceRegisterUse(vreg, tempVReg);
+                                replaceRegisterOperand(inst, vreg, tempVReg, false);
+                            }
+                        }
+                    }
+                    
+                    for (auto& reg : inst->getDefRegisters()) {
+                        if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
+                            if (spilledNodes.count(vreg)) {
+                                bool isFloat = vreg->isFloatReg();
+                                bool isPtr = (vreg->getIRValue() && vreg->getIRValue()->getType()->isPointerTy());
+                                auto tempVReg = VirtualRegister::createTemp(isFloat);
+                                InstructionTy storeTy = isFloat ? InstructionTy::FSW : (isPtr ? InstructionTy::SD : InstructionTy::SW);
+                                
+                                auto storeInst = std::make_shared<SInstruction>(
+                                    storeTy,
+                                    PhysicalRegister::get(2),
+                                    tempVReg,
+                                    std::make_shared<Immediate>(static_cast<int32_t>(spillOffsets[vreg]))
+                                );
+                                block->insertAfter(inst, storeInst);
+                                inst->replaceRegisterDef(vreg, tempVReg);
+                                replaceRegisterOperand(inst, vreg, tempVReg);
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         std::set<rRegister> allVRegs;
         for (auto& block : blocks) {
             for (auto& inst : block->getInstructions()) {
@@ -301,103 +338,12 @@ namespace backend {
                 vregToPreg[vreg] = hinted;
                 continue;
             }
-            if (vregToPreg.count(vreg) || spilledNodes.count(vreg)) {
-                continue;
-            }
-            markForSpilling(vreg);
         }
-        // 1. 首先处理所有已分配的虚拟寄存器
+        
         for (auto& block : blocks) {
             for (auto& inst : block->getInstructions()) {
                 inst->replaceVRegsWithPhysRegs(vregToPreg);
             }
         }
-        
-        // 2. 处理需要溢出的寄存??
-        for (const auto& spilledReg : spilledNodes) {
-            size_t spillOffset = reserveSpillSlot();
-            spillOffsets[spilledReg] = spillOffset;
-            // 在所有使用该寄存器的地方插入加载/存储指令
-            for (auto& block : blocks) {
-                auto& instructions = block->getInstructions();
-                
-                std::vector<std::shared_ptr<Instruction>> instructionsToProcess;
-                for (auto& inst : instructions) {
-                    instructionsToProcess.push_back(inst);
-                }
-                
-                for (auto& inst : instructionsToProcess) {
-                    // 检查指令是否使用溢出的寄存??
-                    bool usesSpilledReg = false;
-                    for (auto& reg : inst->getUseRegisters()) {
-                        if (reg == spilledReg) {
-                            usesSpilledReg = true;
-                            break;
-                        }
-                    }
-                    for (auto& reg : inst->getDefRegisters()) {
-                        if (reg == spilledReg) {
-                            usesSpilledReg = true;
-                            break;
-                        }
-                    }
-                    
-                    if (usesSpilledReg) {
-                        // 在指令前插入加载指令（如果使用该寄存器）
-                        for (auto& reg : inst->getUseRegisters()) {
-                            if (reg == spilledReg) {
-                                AnyRegister tempReg = PhysicalRegister::get(5, spilledReg->isFloatReg());
-                                // 根据寄存器类型选择正确的指令类??
-                                InstructionTy loadTy = spilledReg->isFloatReg() ? InstructionTy::FLW : InstructionTy::LD;
-                                auto loadInst = std::make_shared<IInstruction>(
-                                    loadTy,
-                                    tempReg, 
-                                    PhysicalRegister::get(2), 
-                                    std::make_shared<Immediate>(spillOffset)
-                                );
-                                block->insertBefore(inst, loadInst);
-                                inst->replaceRegisterUse(spilledReg, tempReg);
-                                replaceRegisterOperand(inst, spilledReg, tempReg, false);
-                            }
-                        }
-                        
-                        // 在指令后插入存储指令（如果定义该寄存器）
-                        for (auto& reg : inst->getDefRegisters()) {
-                            if (reg == spilledReg) {
-                                AnyRegister tempReg = PhysicalRegister::get(5, spilledReg->isFloatReg());
-                                // 根据寄存器类型选择正确的指令类??
-                                InstructionTy storeTy = spilledReg->isFloatReg() ? InstructionTy::FSW : InstructionTy::SD;
-                                auto storeInst = std::make_shared<SInstruction>(
-                                    storeTy,
-                                    PhysicalRegister::get(2),
-                                    tempReg,
-                                    std::make_shared<Immediate>(spillOffset)
-                                );
-                                block->insertAfter(inst, storeInst);
-                                inst->replaceRegisterDef(spilledReg, tempReg);
-                                replaceRegisterOperand(inst, spilledReg, tempReg);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        for (auto& block : blocks) {
-            for (auto& inst : block->getInstructions()) {
-                for (auto& reg : inst->getDefRegisters()) {
-                    if (std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                        std::cerr << "Warning: Unmapped virtual register in def: " << reg->toString() << std::endl;
-                    }
-                }
-                for (auto& reg : inst->getUseRegisters()) {
-                    if (std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                        std::cerr << "Warning: Unmapped virtual register in use: " << reg->toString() << std::endl;
-                    }
-                }
-            }
-        }
-
     }
 }
-
-

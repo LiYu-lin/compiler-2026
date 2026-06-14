@@ -3,6 +3,11 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_map>
+#include <unordered_set>
+#include <map>
+#include <set>
+#include <stdexcept>
 #include "Value.h"
 #include "RiscVOperand/OpRegister.h"
 #include "Instructions.h"
@@ -25,10 +30,8 @@ inline std::string sanitizeSymbolName(const std::string& rawName) {
 using rRegister = std::shared_ptr<VirtualRegister>;
 using pRegister = std::shared_ptr<PhysicalRegister>;
 
-// 干涉图类型定�?
 class InterferenceGraph {
 public:
-    // 邻接表：每个虚拟寄存�?-> 与之冲突的虚拟寄存器集合
     std::unordered_map<rRegister, std::unordered_set<rRegister>> adjList;
 
     void addEdge(const rRegister& a, const rRegister& b) {
@@ -49,32 +52,25 @@ public:
         return result;
     }
     
-    // 移除节点
     void removeNode(const rRegister& reg) {
-        // 先移除该节点所有邻接关�?
         for (auto& neighbor : adjList[reg]) {
             adjList[neighbor].erase(reg);
         }
-        // 再移除节点本�?
         adjList.erase(reg);
     }
     
-    // 获取节点的度�?
     size_t degree(const rRegister& reg) const {
         auto it = adjList.find(reg);
         return it == adjList.end() ? 0 : it->second.size();
     }
     
-    // 检查两个节点是否相�?
     bool isAdjacent(const rRegister& a, const rRegister& b) const {
         auto it = adjList.find(a);
         return it != adjList.end() && it->second.count(b) > 0;
     }
     
-    // 获取图中度数最小的节点
     rRegister getMinDegreeNode() const {
         if (adjList.empty()) return nullptr;
-        
         auto minIt = adjList.begin();
         for (auto it = adjList.begin(); it != adjList.end(); ++it) {
             if (it->second.size() < minIt->second.size()) {
@@ -84,10 +80,8 @@ public:
         return minIt->first;
     }
     
-    // 获取图中度数最大的节点
     rRegister getMaxDegreeNode() const {
         if (adjList.empty()) return nullptr;
-        
         auto maxIt = adjList.begin();
         for (auto it = adjList.begin(); it != adjList.end(); ++it) {
             if (it->second.size() > maxIt->second.size()) {
@@ -97,12 +91,10 @@ public:
         return maxIt->first;
     }
     
-    // 检查图是否为空
     bool empty() const {
         return adjList.empty();
     }
     
-    // 获取图的大小(节点�?
     size_t size() const {
         return adjList.size();
     }
@@ -253,29 +245,12 @@ public:
     std::shared_ptr<Instruction> convertGetElementPtrInstruction(IR::GetElementPtrInstruction* inst);
     std::shared_ptr<Instruction> convertGEPInstruction(IR::GetElementPtrInstruction* inst);
     std::shared_ptr<Instruction> convertAllocaInstruction(IR::AllocaInstruction* inst);
-    // void processPhiNodes() {
-    // for (auto& inst : instructions) {
-    //     if (auto phi = dynamic_cast<IR::PhiInstruction*>(inst.get())) {
-    //         // 在基本块开头为phi节点生成move指令
-    //         auto dst = VirtualRegister::create(phi);
-    //         for (auto& [val, bb] : phi->getIncomingValue()) {
-    //             if (bb == this->irBlock) {
-    //                 auto src = VirtualRegister::create(val);
-    //                 addInstruction(std::make_shared<RInstruction>(
-    //                     dst->isFloatReg() ? InstructionTy::FSGNJ_S : InstructionTy::ADD,
-    //                     dst, src, src));
-    //                 break;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
+
     const std::vector<std::shared_ptr<Instruction>>& getInstructions() const { 
         return instructions; 
     }
 
     void initializeInstructions(){
-        // std::cout<< "Initializing instructions, count: " << irBlock->getVectorInstructions().size() << std::endl;
         for (auto& inst : irBlock->getVectorInstructions()) {
             auto asmInst = convertInstruction(inst);
             if (asmInst) {
@@ -320,7 +295,6 @@ private:
     AsmFunction* parentFunction;
     std::unique_ptr<Label> label;
     std::vector<std::shared_ptr<Instruction>> instructions;
-    
 };
 
 class AsmFunction {
@@ -330,7 +304,6 @@ public:
           label(new Label(sanitizeSymbolName(func->getIRName()), true)),
           regAlloca(nullptr),
           needsReturnAddressSave(functionHasCallInstruction()) {
-        // 初始化所有AsmBasicBlock并建立映�?
         for (IR::ListNode *i = irFunction->blocks().begin(); i != irFunction->blocks().end(); i = i->nextNode()) {
             auto block = static_cast<IR::BasicBlock*>(i);
             auto asmBlock = new AsmBasicBlock(this, block);
@@ -344,12 +317,23 @@ public:
         initArguments();
     }
 
-    void allocateRegisters(){
-        livenessAnalysis(); // 步骤1
-        auto graph = buildInterferenceGraph(); // 步骤2
-        auto vregToPreg = colorGraph(graph);   // 步骤3
-        rewriteInstructions(vregToPreg);  
+    void allocateRegisters() {
+        while (true) {
+            livenessAnalysis();
+            auto graph = buildInterferenceGraph();
+            spilledNodes.clear();
+            auto coloring = colorGraph(graph);
+            
+            if (spilledNodes.empty()) {
+                rewriteInstructions(coloring);
+                break;
+            }
+            
+            std::unordered_map<rRegister, pRegister> dummy;
+            rewriteInstructions(dummy);
+        }
     }
+
     void addBlock(AsmBasicBlock* block) {
         blocks.push_back(std::unique_ptr<AsmBasicBlock>(block));
     }
@@ -399,7 +383,6 @@ public:
             }
         }
 
-        // std::cout<<"block count: " << blocks.size() << std::endl;
         for (auto& block : blocks) {
             s += block->output();
         }
@@ -415,10 +398,9 @@ public:
         stackAllocations[inst] = {size, alignment};
     }
     
-    // 获取栈帧总大�?
     size_t getStackFrameSize() const {
         size_t total = getFixedFrameBytes();
-        return (total + 15) / 16 * 16;  // 16字节对齐
+        return (total + 15) / 16 * 16;
     }
     size_t getAllocatedStackBytes() const {
         return nextStackOffset;
@@ -478,7 +460,6 @@ private:
     size_t spillSlotCount = 0;
     size_t nextStackOffset = 0;
     bool needsReturnAddressSave = false;
-
 
     void initReturnRegister() {
         if (!irFunction->getReturnType()->isVoidTy()) {
@@ -547,21 +528,15 @@ public:
 
     std::string output() {
         std::string s;
-        
-        // 输出全局变量
         for (auto& global : globals) {
             s += global->output();
         }
-        
         s += "\t.text\n";
-        
-        // 输出函数
         for (auto& func : functions) {
             if (!func->isLibFunc()) {
                 s += func->output();
             }
         }
-        
         return s;
     }
 
@@ -569,7 +544,6 @@ public:
         for (auto& global : globals) {
             global->output();
         }
-        
         for (auto& func : functions) {
             func->output();
         }
@@ -581,6 +555,3 @@ private:
 };
 
 } // namespace backend
-
-
-
