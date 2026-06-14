@@ -127,7 +127,7 @@ public:
 
     std::vector<std::shared_ptr<Operand>> getDefRegisters() const { return regDef; }
     std::vector<std::shared_ptr<Operand>> getUseRegisters() const { return regUse; }
-    std::set<rRegister> liveOut;
+    std::unordered_set<rRegister> liveOut;
     
     template<typename OldRegType, typename NewRegType>
     void replaceRegisterUse(OldRegType oldReg, NewRegType newReg) {

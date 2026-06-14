@@ -66,9 +66,9 @@ namespace backend {
         }
     }
 
-    std::tuple<std::set<rRegister>, std::set<rRegister>> AsmFunction::computeUseDef(const std::unique_ptr<AsmBasicBlock>& block) {
-        std::set<rRegister> use_set;
-        std::set<rRegister> def_set;
+    std::tuple<std::unordered_set<rRegister>, std::unordered_set<rRegister>> AsmFunction::computeUseDef(const std::unique_ptr<AsmBasicBlock>& block) {
+        std::unordered_set<rRegister> use_set;
+        std::unordered_set<rRegister> def_set;
 
         for (auto& instr : block->getInstructions()) {
             for (auto& reg : instr->getUseRegisters()) {
@@ -86,12 +86,12 @@ namespace backend {
             }
         }
 
-        return {use_set, def_set};
+        return {std::move(use_set), std::move(def_set)};
     }
 
-    std::tuple<std::set<rRegister>, std::set<rRegister>> AsmFunction::computeUseDefForInstruction(const std::shared_ptr<Instruction>& inst) {
-        std::set<rRegister> use_set;
-        std::set<rRegister> def_set;
+    std::tuple<std::unordered_set<rRegister>, std::unordered_set<rRegister>> AsmFunction::computeUseDefForInstruction(const std::shared_ptr<Instruction>& inst) {
+        std::unordered_set<rRegister> use_set;
+        std::unordered_set<rRegister> def_set;
 
         for (auto& reg : inst->getUseRegisters()) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
@@ -107,7 +107,7 @@ namespace backend {
             }
         }
 
-        return {use_set, def_set};
+        return {std::move(use_set), std::move(def_set)};
     }
 
     void AsmFunction::livenessAnalysis() {
@@ -116,57 +116,73 @@ namespace backend {
             block->liveOut.clear();
         }
 
+        // Precompute use/def for each block to avoid rescanning instructions
+        std::vector<std::pair<std::unordered_set<rRegister>, std::unordered_set<rRegister>>> blockUseDef;
+        blockUseDef.reserve(blocks.size());
+        std::unordered_map<AsmBasicBlock*, size_t> blockIndex;
+        for (size_t i = 0; i < blocks.size(); ++i) {
+            blockIndex[blocks[i].get()] = i;
+            auto pr = computeUseDef(blocks[i]);
+            blockUseDef.emplace_back(std::move(std::get<0>(pr)), std::move(std::get<1>(pr)));
+        }
+
+        std::vector<std::unordered_set<rRegister>> liveInVec(blocks.size()), liveOutVec(blocks.size());
         bool changed = true;
         while (changed) {
             changed = false;
-            
-            for (auto it = blocks.rbegin(); it != blocks.rend(); ++it) {
-                auto& block = *it;
-                
-                std::set<rRegister> oldIn = block->liveIn;
-                std::set<rRegister> oldOut = block->liveOut;
-                
-                block->liveOut.clear();
+            for (int idx = static_cast<int>(blocks.size()) - 1; idx >= 0; --idx) {
+                auto& block = blocks[idx];
+                auto oldIn = liveInVec[idx];
+                auto oldOut = liveOutVec[idx];
+
+                liveOutVec[idx].clear();
                 for (auto successor : block->getSuccessors()) {
-                    block->liveOut.insert(successor->liveIn.begin(), successor->liveIn.end());
+                    auto sit = blockIndex.find(successor);
+                    if (sit != blockIndex.end()) {
+                        for (auto& r : liveInVec[sit->second]) liveOutVec[idx].insert(r);
+                    }
                 }
-                
-                auto [use, def] = computeUseDef(block); 
-                
-                block->liveIn = use;
-                std::set<rRegister> temp;
-                std::set_difference(block->liveOut.begin(), block->liveOut.end(),
-                                    def.begin(), def.end(),
-                                    std::inserter(temp, temp.begin()));
-                block->liveIn.insert(temp.begin(), temp.end());
-                
-                if (block->liveIn != oldIn || block->liveOut != oldOut) {
+
+                // liveIn = use U (liveOut - def)
+                auto& use = blockUseDef[idx].first;
+                auto& def = blockUseDef[idx].second;
+
+                liveInVec[idx] = use;
+                for (auto& r : liveOutVec[idx]) {
+                    if (def.find(r) == def.end()) liveInVec[idx].insert(r);
+                }
+
+                if (liveInVec[idx] != oldIn || liveOutVec[idx] != oldOut) {
                     changed = true;
                 }
             }
         }
 
+        // Commit results back to blocks
+        for (size_t i = 0; i < blocks.size(); ++i) {
+            blocks[i]->liveIn = std::move(liveInVec[i]);
+            blocks[i]->liveOut = std::move(liveOutVec[i]);
+        }
+
         for (auto& block : blocks) {
-            std::set<rRegister> currentLive = block->liveOut;
-            
+            std::unordered_set<rRegister> currentLive = block->liveOut;
+
             auto& instructions = block->getInstructions();
             for (auto it = instructions.rbegin(); it != instructions.rend(); ++it) {
                 auto& inst = *it;
-                
+
                 inst->liveOut = currentLive;
-                
+
                 auto [use, def] = computeUseDefForInstruction(inst);
-                
-                std::set<rRegister> newLive = use;
-                std::set<rRegister> temp;
-                std::set_difference(currentLive.begin(), currentLive.end(),
-                                    def.begin(), def.end(),
-                                    std::inserter(temp, temp.begin()));
-                newLive.insert(temp.begin(), temp.end());
-                
-                currentLive = newLive;
+
+                std::unordered_set<rRegister> newLive = std::move(use);
+                for (auto& r : currentLive) {
+                    if (def.find(r) == def.end()) newLive.insert(r);
+                }
+
+                currentLive = std::move(newLive);
             }
-            
+
             assert(currentLive == block->liveIn);
         }
     }  

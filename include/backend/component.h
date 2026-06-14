@@ -288,8 +288,8 @@ public:
         return s;
     }
 
-    std::set<rRegister> liveIn;
-    std::set<rRegister> liveOut;
+    std::unordered_set<rRegister> liveIn;
+    std::unordered_set<rRegister> liveOut;
 private:
     IR::BasicBlock* irBlock;
     AsmFunction* parentFunction;
@@ -498,8 +498,8 @@ private:
         return (value + alignment - 1) / alignment * alignment;
     }
 
-    std::tuple<std::set<rRegister>, std::set<rRegister>> computeUseDef(const std::unique_ptr<AsmBasicBlock>& block);
-    std::tuple<std::set<rRegister>, std::set<rRegister>> computeUseDefForInstruction(const std::shared_ptr<Instruction>& inst);
+    std::tuple<std::unordered_set<rRegister>, std::unordered_set<rRegister>> computeUseDef(const std::unique_ptr<AsmBasicBlock>& block);
+    std::tuple<std::unordered_set<rRegister>, std::unordered_set<rRegister>> computeUseDefForInstruction(const std::shared_ptr<Instruction>& inst);
 };
 
 class AsmModule {
