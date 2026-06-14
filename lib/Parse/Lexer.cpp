@@ -58,7 +58,7 @@ std::string Lexer::readAll(std::stringstream &buffer) {
 char Lexer::peek() { return input.peek(); }
 
 char Lexer::get() {
-    char c;
+    char c = EOF;
     if (input.get(c)) {
         positionHistory.emplace_back(line, column);
         tokPos++;
@@ -76,6 +76,7 @@ char Lexer::get() {
 
 void Lexer::unget() {
     if (input && !positionHistory.empty()) {
+        input.clear();
         input.unget();
         tokPos--;
         auto [prevLine, prevColumn] = positionHistory.back();
@@ -271,7 +272,7 @@ std::shared_ptr<Token> Lexer::nextToken() {
         } else if (isalpha(c) || c == '_') {
             unget();
             return nextIdentifier();
-        } else if (isdigit(c) || c == '.') {
+        } else if (isdigit(c)) {
             unget();
             return nextNumber();
         } else if (c == '.') {

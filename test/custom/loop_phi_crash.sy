@@ -1,0 +1,11 @@
+// loop_phi_crash.sy
+int main() {
+    int i = 0;
+    int sum = 0;
+    while (i < 1000000) {
+        sum = sum + i;
+        i = i + 1;  // 重点看这个 i 的更新有没有在优化中被丢掉
+    }
+    putint(sum);
+    return 0;
+}

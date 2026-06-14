@@ -5,6 +5,10 @@ else()
     # 对于MinGW/GCC启用并行编译
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
     add_compile_options(-march=native)
+    if(MINGW OR WIN32)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
+    endif()
 endif()
 
 cmake_minimum_required(VERSION 3.12.0)

@@ -467,11 +467,11 @@ public:
         });
     }
 
-    template <typename Op>
+template <typename Op>
     Parser<T> chain(Parser<Op> opParser, std::function<T(Op, T, T)> combine) {
         return Parser<T>([*this, opParser, combine](TokenPtrIterator state)
                              -> std::variant<ParserError, Pure<T>> {
-            // Parse the first term
+            // 1. 解析第一个左侧项
             auto firstResult = this->stateFunc(state);
             if (std::holds_alternative<ParserError>(firstResult)) {
                 return std::get<ParserError>(firstResult);
@@ -481,27 +481,32 @@ public:
             T leftValue = currentPure.value;
             TokenPtrIterator currentState = currentPure.state;
 
-            // Repeatedly try to parse operator and right term
+            // 2. 循环尝试解析操作符和右侧项
             while (true) {
-                // Try to parse operator
+                // 核心：每次循环前记录当前状态快照，用于右项失败时完整回溯
+                TokenPtrIterator backtrackState = currentState;
+
+                // 尝试解析操作符
                 auto opResult = opParser.stateFunc(currentState);
                 if (std::holds_alternative<ParserError>(opResult)) {
-                    break; // No more operators found
+                    break; // 没有匹配到操作符，正常结束 chain
                 }
                 auto opPure = std::get<Pure<Op>>(opResult);
                 Op op = opPure.value;
 
-                // Try to parse the right term
+                // 尝试解析右侧项
                 auto rightResult = this->stateFunc(opPure.state);
                 if (std::holds_alternative<ParserError>(rightResult)) {
-                    // If we can't parse the right term, backtrack
+                    // 如果右侧项解析失败，证明这个操作符属于更外层的语法成分
+                    // 必须把状态完整退回到解析该操作符之前！
+                    currentState = backtrackState;
                     break;
                 }
 
                 auto rightPure = std::get<Pure<T>>(rightResult);
                 T rightValue = rightPure.value;
 
-                // Combine the left and right terms with the operator
+                // 成功匹配一组，组合左右项，并更新当前状态指针
                 leftValue = combine(op, leftValue, rightValue);
                 currentState = rightPure.state;
             }
