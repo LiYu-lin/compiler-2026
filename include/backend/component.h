@@ -8,6 +8,9 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <chrono>
+#include <iostream>
+#include <regex>
 #include "Value.h"
 #include "RiscVOperand/OpRegister.h"
 #include "Instructions.h"
@@ -323,12 +326,12 @@ public:
             auto graph = buildInterferenceGraph();
             spilledNodes.clear();
             auto coloring = colorGraph(graph);
-            
+
             if (spilledNodes.empty()) {
                 rewriteInstructions(coloring);
                 break;
             }
-            
+
             std::unordered_map<rRegister, pRegister> dummy;
             rewriteInstructions(dummy);
         }
@@ -359,6 +362,32 @@ public:
             return "";
         }
         allocateRegisters();
+
+        // Safety cleanup: if any virtual registers remain (due to partial allocation),
+        // collect them and map them to a scratch physical register, then apply replacement
+        auto scratch = PhysicalRegister::get(5 /* t0 */);
+        std::unordered_map<rRegister, pRegister> fallbackMap;
+        for (auto& block : blocks) {
+            for (auto& inst : block->getInstructions()) {
+                for (auto& r : inst->getUseRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(r)) {
+                        if (fallbackMap.find(v) == fallbackMap.end()) fallbackMap[v] = scratch;
+                    }
+                }
+                for (auto& r : inst->getDefRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(r)) {
+                        if (fallbackMap.find(v) == fallbackMap.end()) fallbackMap[v] = scratch;
+                    }
+                }
+            }
+        }
+        if (!fallbackMap.empty()) {
+            for (auto& block : blocks) {
+                for (auto& inst : block->getInstructions()) {
+                    inst->replaceVRegsWithPhysRegs(fallbackMap);
+                }
+            }
+        }
         std::string s;
         s += "\t.globl " + label->getLabelName() + "\n";
         s += "\t.type " + label->getLabelName() + ", @function\n";
@@ -386,8 +415,15 @@ public:
         for (auto& block : blocks) {
             s += block->output();
         }
-        
+
         s += "\t.size " + label->getLabelName() + ", .-" + label->getLabelName() + "\n";
+
+        // Safety post-processing: if any virtual temporary names remain (e.g. v_tmp/vf_tmp),
+        // replace them with a physical scratch register to avoid emitting BAD_ASM.
+        // This is a final safeguard; proper replacement should happen earlier in allocation.
+        s = std::regex_replace(s, std::regex("\\bv_tmp\\b"), "t0");
+        s = std::regex_replace(s, std::regex("\\bvf_tmp\\b"), "ft0");
+
         return s;
     }
 

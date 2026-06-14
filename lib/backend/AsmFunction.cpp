@@ -3,6 +3,8 @@
 #include "OpRegister.h"
 #include <memory>
 #include <stack>
+#include <deque>
+#include <limits>
 #include <iostream>
 #include <cassert>
 
@@ -189,24 +191,47 @@ namespace backend {
 
     InterferenceGraph AsmFunction::buildInterferenceGraph() {
         InterferenceGraph graph;
+
+        // First collect all virtual registers to reserve containers
+        std::unordered_set<rRegister> allVRegs;
+        for (auto& block : blocks) {
+            for (const auto& inst : block->getInstructions()) {
+                for (auto& reg : inst->getDefRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(reg)) allVRegs.insert(v);
+                }
+                for (auto& reg : inst->getUseRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(reg)) allVRegs.insert(v);
+                }
+                for (auto& reg : inst->getUseRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(reg)) allVRegs.insert(v);
+                }
+            }
+        }
+
+        graph.adjList.reserve(allVRegs.size() * 2 + 16);
+        for (auto v : allVRegs) graph.adjList[v];
+
+        // Build edges. Use temporary vector for live set to avoid iterator overhead
         for (auto& block : blocks) {
             for (const auto& inst : block->getInstructions()) {
                 for (auto& reg : inst->getDefRegisters()) {
                     if (auto defVReg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
-                        graph.adjList[defVReg];
-                        for (auto& liveReg : inst->liveOut) {
+                        auto liveVec = std::vector<rRegister>(inst->liveOut.begin(), inst->liveOut.end());
+                        for (auto& liveReg : liveVec) {
                             graph.addEdge(defVReg, liveReg);
                         }
                     }
                 }
-                const auto& live = inst->liveOut; 
-                for (auto it1 = live.begin(); it1 != live.end(); ++it1) {
-                    for (auto it2 = std::next(it1); it2 != live.end(); ++it2) {
-                        graph.addEdge(*it1, *it2);
+
+                auto liveVec = std::vector<rRegister>(inst->liveOut.begin(), inst->liveOut.end());
+                for (size_t i = 0; i < liveVec.size(); ++i) {
+                    for (size_t j = i + 1; j < liveVec.size(); ++j) {
+                        graph.addEdge(liveVec[i], liveVec[j]);
                     }
                 }
             }
         }
+
         return graph;
     }
     
@@ -228,52 +253,93 @@ namespace backend {
 
     std::unordered_map<rRegister, pRegister> AsmFunction::colorGraph(const InterferenceGraph& graph) {
         std::unordered_map<rRegister, pRegister> coloring;
-        std::stack<rRegister> stack;
-        
-        auto workGraph = graph;
-        while (!workGraph.nodes().empty()) {
-            bool simplified = false;
-            
-            for (auto node : workGraph.nodes()) {
-                if (workGraph.neighbors(node).size() < getAllPhysicalRegisters(node->isFloatReg()).size()) {
-                    stack.push(node);
-                    workGraph.removeNode(node);
-                    simplified = true;
-                    break;
+
+        // Prepare degrees, use counts and remaining node set
+        std::unordered_map<rRegister, size_t> degree;
+        std::unordered_set<rRegister> remaining;
+        degree.reserve(graph.adjList.size() * 2);
+        for (const auto& kv : graph.adjList) {
+            degree[kv.first] = kv.second.size();
+            remaining.insert(kv.first);
+        }
+
+        // Compute use counts heuristic (number of uses across instructions)
+        std::unordered_map<rRegister, size_t> useCount;
+        useCount.reserve(graph.adjList.size() * 2);
+        for (auto& block : blocks) {
+            for (auto& inst : block->getInstructions()) {
+                for (auto& reg : inst->getUseRegisters()) {
+                    if (auto v = std::dynamic_pointer_cast<VirtualRegister>(reg)) useCount[v]++;
                 }
-            }
-            
-            if (!simplified) {
-                auto node = workGraph.getMaxDegreeNode();
-                if (!node) break;
-                stack.push(node);
-                workGraph.removeNode(node);
             }
         }
-        
-        while (!stack.empty()) {
-            auto node = stack.top();
-            stack.pop();
-            
-            std::set<pRegister> usedColors;
-            for (auto neighbor : graph.neighbors(node)) {
-                if (coloring.count(neighbor)) {
-                    usedColors.insert(coloring[neighbor]);
+
+        std::vector<rRegister> stackOrder;
+        stackOrder.reserve(remaining.size());
+
+        // queue of low-degree nodes; we push nodes whose degree < K(node)
+        std::deque<rRegister> lowQueue;
+        for (auto node : remaining) {
+            size_t K = getAllPhysicalRegisters(node->isFloatReg()).size();
+            if (degree[node] < K) lowQueue.push_back(node);
+        }
+
+        while (!remaining.empty()) {
+            rRegister node = nullptr;
+
+            if (!lowQueue.empty()) {
+                node = lowQueue.front(); lowQueue.pop_front();
+                if (remaining.find(node) == remaining.end()) continue; // already removed
+            } else {
+                // pick a node to spill using cost heuristic: minimal useCount/(degree+1)
+                double bestScore = std::numeric_limits<double>::infinity();
+                for (auto n : remaining) {
+                    size_t u = 1;
+                    auto uit = useCount.find(n);
+                    if (uit != useCount.end()) u = uit->second;
+                    double score = static_cast<double>(u) / static_cast<double>(degree[n] + 1);
+                    if (score < bestScore) { bestScore = score; node = n; }
                 }
+                if (!node) break;
+                std::cerr << "[Color] pick spill node=" << node->toString() << " score=" << bestScore << " degree=" << degree[node] << std::endl;
             }
-            
+
+            // remove node
+            remaining.erase(node);
+            stackOrder.push_back(node);
+
+            // update neighbors
+            for (auto neighbor : graph.neighbors(node)) {
+                if (remaining.find(neighbor) == remaining.end()) continue;
+                if (degree[neighbor] > 0) degree[neighbor]--;
+                size_t K = getAllPhysicalRegisters(neighbor->isFloatReg()).size();
+                if (degree[neighbor] < K) lowQueue.push_back(neighbor);
+            }
+        }
+
+        // Assign colors in reverse order
+        for (auto it = stackOrder.rbegin(); it != stackOrder.rend(); ++it) {
+            auto node = *it;
+            std::unordered_set<pRegister> usedColors;
+            for (auto neighbor : graph.neighbors(node)) {
+                auto cit = coloring.find(neighbor);
+                if (cit != coloring.end()) usedColors.insert(cit->second);
+            }
+
+            bool assigned = false;
             for (auto reg : getAllPhysicalRegisters(node->isFloatReg())) {
-                if (usedColors.count(reg) == 0) {
+                if (usedColors.find(reg) == usedColors.end()) {
                     coloring[node] = reg;
+                    std::cerr << "[Color] assigned node=" << node->toString() << " -> preg=" << reg->toString() << std::endl;
+                    assigned = true;
                     break;
                 }
             }
-            
-            if (coloring.count(node) == 0) {
+            if (!assigned) {
                 markForSpilling(node);
             }
         }
-        
+
         return coloring;
     }
 
@@ -295,18 +361,19 @@ namespace backend {
                             if (spilledNodes.count(vreg)) {
                                 bool isFloat = vreg->isFloatReg();
                                 bool isPtr = (vreg->getIRValue() && vreg->getIRValue()->getType()->isPointerTy());
-                                auto tempVReg = VirtualRegister::createTemp(isFloat);
+                                // Use a physical temp register for the loaded value to avoid creating new vregs
+                                auto tempPreg = PhysicalRegister::get(5); // t0
                                 InstructionTy loadTy = isFloat ? InstructionTy::FLW : (isPtr ? InstructionTy::LD : InstructionTy::LW);
-                                
+
                                 auto loadInst = std::make_shared<IInstruction>(
                                     loadTy,
-                                    tempVReg,
+                                    tempPreg,
                                     PhysicalRegister::get(2),
                                     std::make_shared<Immediate>(static_cast<int32_t>(spillOffsets[vreg]))
                                 );
                                 block->insertBefore(inst, loadInst);
-                                inst->replaceRegisterUse(vreg, tempVReg);
-                                replaceRegisterOperand(inst, vreg, tempVReg, false);
+                                inst->replaceRegisterUse(vreg, tempPreg);
+                                replaceRegisterOperand(inst, vreg, tempPreg, false);
                             }
                         }
                     }
@@ -316,18 +383,19 @@ namespace backend {
                             if (spilledNodes.count(vreg)) {
                                 bool isFloat = vreg->isFloatReg();
                                 bool isPtr = (vreg->getIRValue() && vreg->getIRValue()->getType()->isPointerTy());
-                                auto tempVReg = VirtualRegister::createTemp(isFloat);
+                                // Use a physical temp register for storing value
+                                auto tempPreg = PhysicalRegister::get(5); // t0
                                 InstructionTy storeTy = isFloat ? InstructionTy::FSW : (isPtr ? InstructionTy::SD : InstructionTy::SW);
-                                
+
                                 auto storeInst = std::make_shared<SInstruction>(
                                     storeTy,
                                     PhysicalRegister::get(2),
-                                    tempVReg,
+                                    tempPreg,
                                     std::make_shared<Immediate>(static_cast<int32_t>(spillOffsets[vreg]))
                                 );
                                 block->insertAfter(inst, storeInst);
-                                inst->replaceRegisterDef(vreg, tempVReg);
-                                replaceRegisterOperand(inst, vreg, tempVReg);
+                                inst->replaceRegisterDef(vreg, tempPreg);
+                                replaceRegisterOperand(inst, vreg, tempPreg);
                             }
                         }
                     }
