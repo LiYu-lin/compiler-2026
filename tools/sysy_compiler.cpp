@@ -198,7 +198,19 @@ int main(int argc, char** argv) {
         }
 
         throw std::runtime_error("No emission mode selected");
-    } catch (const std::exception& e) {
+    } catch (const frontend::ParserError& e) {
+        std::cerr << "\n========================================\n";
+        std::cerr << "🎯 [CRITICAL PARSER ERROR FOUND]:\n";
+        std::cerr << e.message << '\n';
+        if (e.state.get() != nullptr) {
+            std::cerr << "📍 Location: Line " << e.state->line 
+                      << ", Column " << e.state->column << '\n';
+            std::cerr << "🔍 Failed Token String: " << e.state->toString() << '\n';
+        }
+        std::cerr << "========================================\n\n";
+        return 1;
+    } 
+    catch (const std::exception& e) {
         std::cerr << "compiler error: " << e.what() << '\n';
         return 1;
     }

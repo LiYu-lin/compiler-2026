@@ -258,27 +258,24 @@ void emitFixedFrameRestoreIfNeeded(AsmBasicBlock* block) {
 
 }
 
-
-    std::vector<AsmBasicBlock*> AsmBasicBlock::getSuccessors() {
-        std::vector<AsmBasicBlock*> successors;
-            for (auto succ : irBlock->getSuccBlock()) {
-        // 通过父函数的映射表找到对应的Asm基本�?
-            if (parentFunction) {
-                auto asmSucc = parentFunction->getAsmBasicBlock(succ);
-                if (asmSucc) {
-                    successors.push_back(asmSucc);
-                }
+std::vector<AsmBasicBlock*> AsmBasicBlock::getSuccessors() {
+    std::vector<AsmBasicBlock*> successors;
+    if (!irBlock) return successors;
+    for (auto succ : irBlock->getSuccBlock()) {
+        if (parentFunction) {
+            auto asmSucc = parentFunction->getAsmBasicBlock(succ);
+            if (asmSucc) {
+                successors.push_back(asmSucc);
             }
         }
-        
-        return successors;
     }
+    return successors;
+}
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertInstruction(IR::Instruction* inst) {
     if (!inst) return nullptr;
 
     int opcode = inst->getOpcode();
-    // std::cout<< "Converting instruction: " << inst->getIRName() << " with opcode: " << opcode << std::endl;
     try {
         if (opcode >= IR::Instruction::BinaryBegin && opcode < IR::Instruction::BinaryEnd) {
             return convertBinaryInstruction(static_cast<IR::BinaryInstruction*>(inst));
@@ -325,7 +322,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertInstruction(IR::Instruction* 
         return nullptr;
     }
 }
-
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertLoadInstruction(IR::LoadInstruction* inst) {
     if (auto *allocaInst = dynamic_cast<IR::AllocaInstruction*>(inst->getSrc())) {
@@ -422,7 +418,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
     auto rd = VirtualRegister::create(inst, inst->getType()->isFloatTy());
     
     switch (inst->getOpcode()) {
-        // gzj：这里只处理i32，所以用32位w
         case IR::Instruction::Add:
             return std::make_shared<RInstruction>(InstructionTy::ADDW, rd, lhs, rhs);
         case IR::Instruction::Sub:
@@ -434,7 +429,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
         case IR::Instruction::Rem:
             return std::make_shared<RInstruction>(InstructionTy::REMW, rd, lhs, rhs);
             
-        // 浮点运算
         case IR::Instruction::FAdd:
             return std::make_shared<RInstruction>(InstructionTy::FADD_S, rd, lhs, rhs);
         case IR::Instruction::FSub:
@@ -443,15 +437,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBinaryInstruction(IR::BinaryI
             return std::make_shared<RInstruction>(InstructionTy::FMUL_S, rd, lhs, rhs);
         case IR::Instruction::FDiv:
             return std::make_shared<RInstruction>(InstructionTy::FDIV_S, rd, lhs, rhs);
-        // case IR::Instruction::FRem:
-        //     // RISC-V没有直接的浮点取模指令，需要软件实�?
-        //     addInstruction(std::make_shared<Call>(
-        //         std::make_shared<Label>("fmodf"), 
-        //         {lhs, rhs}, 
-        //         rd));
-        //     return nullptr;
             
-        // 位运�?
         case IR::Instruction::And:
             return std::make_shared<RInstruction>(InstructionTy::AND, rd, lhs, rhs);
         case IR::Instruction::Or:
@@ -605,7 +591,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertUnaryInstruction(IR::UnaryIns
                 
         case IR::Instruction::FNeg:
             return std::make_shared<RInstruction>(
-                InstructionTy::FSGNJN_S,  // 符号位取�?
+                InstructionTy::FSGNJN_S,  
                 dst,
                 src,
                 src);
@@ -615,7 +601,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertUnaryInstruction(IR::UnaryIns
                 InstructionTy::XORI,
                 dst,
                 src,
-                std::make_shared<Immediate>(-1));  // 按位取反
+                std::make_shared<Immediate>(-1));  
                 
         default:
             throw std::runtime_error("Unsupported unary operation");
@@ -691,7 +677,6 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCastInstruction(IR::CastInstr
             throw std::runtime_error("Unsupported cast operation");
     }
 }
-
 
 std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstruction* inst) {
     auto callArgs = inst->getArgs();
@@ -896,6 +881,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
 
     return nullptr;
 }
+
 std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruction* inst) {
     auto lhs = materializeValue(this, inst->getOperand(0));
     auto rhs = materializeValue(this, inst->getOperand(1));
@@ -942,10 +928,4 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCmpInstruction(IR::CmpInstruc
     throw std::runtime_error("Unsupported comparison operation");
 }
 
-
-
-}
-
-
-
-
+} // namespace backend

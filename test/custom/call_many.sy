@@ -1,0 +1,10 @@
+int foo(int a,int b,int c,int d){
+    int x=a+b+c+d;
+    return x;
+}
+int bar(int a,int b){
+    return foo(a+1,b+2,a+3,b+4);
+}
+int main(){
+    return bar(1,2);
+}

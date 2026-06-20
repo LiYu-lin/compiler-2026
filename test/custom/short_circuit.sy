@@ -1,0 +1,15 @@
+// short_circuit.sy
+int main() {
+    int a = 2;
+    int b = 3;
+    int i = 0;
+    while (i < 100 && (a > 1 || b < 0)) {
+        i = i + 1;
+        a = a - 1;
+        if (a == 0) {
+            a = 5; // 复杂的控制流回边
+        }
+    }
+    putint(i);
+    return 0;
+}

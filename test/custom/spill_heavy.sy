@@ -1,0 +1,16 @@
+// spill_heavy.sy
+int main() {
+    int i = 0;
+    int sum = 0;
+    while (i < 500000) {
+        // 同时激活动态局部变量，强迫后端发生寄存器溢出 (Spill)
+        int a1 = i + 1; int a2 = i + 2; int a3 = i + 3; int a4 = i + 4;
+        int a5 = i + 5; int a6 = i + 6; int a7 = i + 7; int a8 = i + 8;
+        int a9 = i + 9; int a10 = i + 10; int a11 = i + 11; int a12 = i + 12;
+        
+        sum = sum + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12;
+        i = i + 1;
+    }
+    putint(sum);
+    return 0;
+}
