@@ -321,7 +321,11 @@ public:
     }
 
     void allocateRegisters() {
+        int loop_safety_counter = 0;
         while (true) {
+            if (++loop_safety_counter > 50) {
+                break;
+            }
             livenessAnalysis();
             auto graph = buildInterferenceGraph();
             spilledNodes.clear();
@@ -363,9 +367,7 @@ public:
         }
         allocateRegisters();
 
-        // Safety cleanup: if any virtual registers remain (due to partial allocation),
-        // collect them and map them to a scratch physical register, then apply replacement
-        auto scratch = PhysicalRegister::get(5 /* t0 */);
+        auto scratch = PhysicalRegister::get(5);
         std::unordered_map<rRegister, pRegister> fallbackMap;
         for (auto& block : blocks) {
             for (auto& inst : block->getInstructions()) {
@@ -418,9 +420,6 @@ public:
 
         s += "\t.size " + label->getLabelName() + ", .-" + label->getLabelName() + "\n";
 
-        // Safety post-processing: if any virtual temporary names remain (e.g. v_tmp/vf_tmp),
-        // replace them with a physical scratch register to avoid emitting BAD_ASM.
-        // This is a final safeguard; proper replacement should happen earlier in allocation.
         s = std::regex_replace(s, std::regex("\\bv_tmp\\b"), "t0");
         s = std::regex_replace(s, std::regex("\\bvf_tmp\\b"), "ft0");
 
@@ -590,4 +589,4 @@ private:
     std::vector<std::unique_ptr<AsmGlobalVariable>> globals;
 };
 
-} // namespace backend
+}
