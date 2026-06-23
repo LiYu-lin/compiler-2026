@@ -66,15 +66,15 @@ class FloatConstant {
 
 public:
     explicit FloatConstant(float val) 
-        : constLabel("float_const_" + std::to_string(convertFloatToU32(val))), 
+        : constLabel(".L_float_const_" + std::to_string(convertFloatToU32(val))), 
           constData(val) {}
 
     std::string output() const {
-        return "\t.align 2\n." + constLabel + ":\n" + constData.output();
+        return "\t.align 2\n" + constLabel + ":\n" + constData.output();
     }
 
     std::shared_ptr<Label> createLabel() { 
-        return std::make_shared<Label>("." + constLabel, false); 
+        return std::make_shared<Label>(constLabel, false); 
     }
 };
 
@@ -84,15 +84,15 @@ class LongIntConstant {
 
 public:
     explicit LongIntConstant(int64_t val) 
-        : constLabel("long_const_" + std::to_string(static_cast<uint64_t>(val))), 
+        : constLabel(".L_long_const_" + std::to_string(static_cast<uint64_t>(val))), 
           constData(val) {}
 
     std::string output() const {
-        return "\t.align 3\n." + constLabel + ":\n" + constData.output();
+        return "\t.align 3\n" + constLabel + ":\n" + constData.output();
     }
 
     std::shared_ptr<Label> createLabel() { 
-        return std::make_shared<Label>("." + constLabel, false); 
+        return std::make_shared<Label>(constLabel, false); 
     }
 };
 

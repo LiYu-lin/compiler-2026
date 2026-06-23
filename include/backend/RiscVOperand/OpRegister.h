@@ -5,22 +5,30 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
+#include <string>
 
 namespace backend {
     class Instruction;
 
     class VirtualRegister : public Operand {
     private:
-        IR::Value* irValue;  // 关联的IR�?
-        bool isTemp;         // 是否是临时寄存器
-        std::string hint;    // 寄存器分配的提示
-        bool isFloat;        // 是否是浮点寄存器  
+        IR::Value* irValue;  
+        bool isTemp;         
+        std::string hint;    
+        bool isFloat;        
         bool isConst = false;
+        int uniqueVregId;    // 新增：RV64全量全局唯一流水的独立ID
+
+        static int generateNextUniqueId() {
+            static int uniqueIdCounter = 0;
+            return uniqueIdCounter++;
+        }
+
     public:
         VirtualRegister(IR::Value* value, bool isFloat, bool temp = false, const std::string& h = "")
             : Operand(isFloat ? OpType::FloatReg : OpType::IntReg),
-              irValue(value), isTemp(temp), hint(h), isFloat(isFloat) {}
-
+              irValue(value), isTemp(temp), hint(h), isFloat(isFloat),
+              uniqueVregId(generateNextUniqueId()) {}
 
         VirtualRegister(const VirtualRegister&) = delete;
         VirtualRegister& operator=(const VirtualRegister&) = delete;
@@ -45,43 +53,38 @@ namespace backend {
             return std::make_shared<VirtualRegister>(nullptr, isFloat, true);
         }
         
-        // 创建零寄存器(x0/f0)
         static std::shared_ptr<VirtualRegister> createZero(bool isFloat = false) {
             auto reg = std::make_shared<VirtualRegister>(nullptr, isFloat);
             reg->hint = isFloat ? "f0" : "x0";
             return reg;
         }
         
-        // 创建返回值寄存器(a0/fa0)
         static std::shared_ptr<VirtualRegister> createReturnValue(bool isFloat = false) {
             auto reg = std::make_shared<VirtualRegister>(nullptr, isFloat);
             reg->hint = isFloat ? "fa0" : "a0";
             return reg;
         }
+
         static std::shared_ptr<VirtualRegister> createTemporary(bool isFloat = false) {
             return std::make_shared<VirtualRegister>(nullptr, isFloat, true);
         }
-        // 获取关联的IR�?
+
         IR::Value* getIRValue() const { return irValue; }
-        
-        // 是否是临时寄存器
         bool isTemporary() const { return isTemp; }
-        
         const std::string& getHint() const { return hint; }
-        
         bool isFloatReg() const { return isFloat; }
         bool isConstReg() const { return isConst; }
         void setConst(bool value) { isConst = value; }
 
-
-        std::string toString() const override{
+        std::string toString() const override {
             if (!hint.empty()) {
                 return hint;
             }
+            // 🚀 工业级防重名升级：即使 irValue 为空，也带上全局唯一 ID 避免数据相互覆盖
             if (!irValue) {
-                return std::string(isFloat ? "vf_tmp" : "v_tmp");
+                return std::string(isFloat ? "vf_tmp" : "v_tmp") + std::to_string(uniqueVregId);
             }
-            return std::string(isFloat ? "vf" : "v") + irValue->getIRName();
+            return std::string(isFloat ? "vf_" : "v_") + irValue->getIRName();
         }
         
         static std::shared_ptr<VirtualRegister> createStackPointer() {
@@ -102,8 +105,9 @@ namespace backend {
             hint = h;
         }
 
+        // 隔离全局单例浅拷贝，将其转换为独立的上下文安全指针
         static std::shared_ptr<VirtualRegister> createStackPointerRef() {
-            static auto spRef = std::make_shared<VirtualRegister>(nullptr, false);
+            auto spRef = std::make_shared<VirtualRegister>(nullptr, false);
             spRef->setHint("sp");
             return spRef;
         }
@@ -123,7 +127,6 @@ namespace backend {
         }
     };
 
-    // 物理寄存器实现（保留原有设计，但适配新接口）
     class PhysicalRegister : public Operand {
     private:
         int regIndex;
@@ -160,7 +163,7 @@ namespace backend {
 
         int getId() const { return regIndex; }
         bool isFloatReg() const { return isFloat; }
-        std::string toString() const override{ return name; }
+        std::string toString() const override { return name; }
 
         static std::shared_ptr<PhysicalRegister> get(int regIndex, bool isFloat = false) {
             auto& cache = isFloat ? floatCache : intCache;
@@ -172,12 +175,11 @@ namespace backend {
 
         static std::shared_ptr<PhysicalRegister> getParamReg(int paramIndex, bool isFloat = false) {
             if (paramIndex < 0 || paramIndex >= 8) {
-                throw std::runtime_error("Invalid parameter index");
+                throw std::runtime_error("Invalid parameter index in PhysicalRegister::getParamReg");
             }
-            return get(10 + paramIndex, isFloat); // a0-a7对应x10-x17, fa0-fa7对应f10-f17
+            return get(10 + paramIndex, isFloat); 
         }
     };
-
 
     using rRegister = std::shared_ptr<VirtualRegister>;
     using pRegister = std::shared_ptr<PhysicalRegister>;
