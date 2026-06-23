@@ -5,12 +5,15 @@
 #include <string>
 #include <memory>
 #include <sstream>
+#include <unordered_set>
+#include <stdexcept>
 #include "RiscVOperand/OpRegister.h"
 #include "RiscVOperand/OpImmediate.h"
-#include <unordered_set>
 #include "RiscVOperand/OpLabel.h"
 
 namespace backend {
+
+class Instruction;
 
 using pImmediate = std::shared_ptr<Immediate>;
 using AnyRegister = std::shared_ptr<Operand>;  
@@ -21,18 +24,11 @@ using OperandVariant = std::variant<
 >;
 
 enum class InstType {
-    R,
-    I, 
-    S,
-    B,
-    U,
-    J,
-    Pseudo
+    R, I, S, B, U, J, Pseudo
 };
 
 enum class InstructionTy {
-    NOP,
-    LUI, AUIPC, JAL, JALR,
+    NOP, LUI, AUIPC, JAL, JALR,
     BEQ, BNE, BLT, BGE, BLTU, BGEU,
     LB, LH, LW, LBU, LHU, SB, SH, SW,
     ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI,
@@ -49,13 +45,105 @@ enum class InstructionTy {
     FCVT_L_S, FCVT_LU_S, FCVT_S_L, FCVT_S_LU,
     FLD, FSD, FMV_X_D, FMV_D_X,
     CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI, LA,
-    CMOV,    
-    NOT,     
-    SEQZ,    
-    SNEZ,    
+    CMOV, NOT, SEQZ, SNEZ
 };
 
-inline const char* RiscVTypeName(InstructionTy ty);
+// 🚀 核心优化：改回 inline 并直接在下方给出完整的实体实现，彻底杜绝多文件链接报错
+inline const char* RiscVTypeName(InstructionTy ty) {
+    switch(ty) {
+        case InstructionTy::NOP: return "nop";
+        case InstructionTy::LUI: return "lui";
+        case InstructionTy::AUIPC: return "auipc";
+        case InstructionTy::JAL: return "jal";
+        case InstructionTy::JALR: return "jalr";
+        case InstructionTy::BEQ: return "beq";
+        case InstructionTy::BNE: return "bne";
+        case InstructionTy::BLT: return "blt";
+        case InstructionTy::BGE: return "bge";
+        case InstructionTy::BLTU: return "bltu";
+        case InstructionTy::BGEU: return "bgeu";
+        case InstructionTy::LB: return "lb";
+        case InstructionTy::LH: return "lh";
+        case InstructionTy::LW: return "lw";
+        case InstructionTy::LBU: return "lbu";
+        case InstructionTy::LHU: return "lhu";
+        case InstructionTy::SB: return "sb";
+        case InstructionTy::SH: return "sh";
+        case InstructionTy::SW: return "sw";
+        case InstructionTy::ADDI: return "addi";
+        case InstructionTy::SLTI: return "slti";
+        case InstructionTy::SLTIU: return "sltiu";
+        case InstructionTy::XORI: return "xori";
+        case InstructionTy::ORI: return "ori";
+        case InstructionTy::ANDI: return "andi";
+        case InstructionTy::SLLI: return "slli";
+        case InstructionTy::SRLI: return "srli";
+        case InstructionTy::SRAI: return "srai";
+        case InstructionTy::ADD: return "add";
+        case InstructionTy::SUB: return "sub";
+        case InstructionTy::SLL: return "sll";
+        case InstructionTy::SLT: return "slt";
+        case InstructionTy::SLTU: return "sltu";
+        case InstructionTy::XOR: return "xor";
+        case InstructionTy::SRL: return "srl";
+        case InstructionTy::SRA: return "sra";
+        case InstructionTy::OR: return "or";
+        case InstructionTy::AND: return "and";
+        case InstructionTy::LWU: return "lwu";
+        case InstructionTy::LD: return "ld";
+        case InstructionTy::SD: return "sd";
+        case InstructionTy::ADDIW: return "addiw";
+        case InstructionTy::SLLIW: return "slliw";
+        case InstructionTy::SRLIW: return "srliw";
+        case InstructionTy::SRAIW: return "sraiw";
+        case InstructionTy::ADDW: return "addw";
+        case InstructionTy::SUBW: return "subw";
+        case InstructionTy::SLLW: return "sllw";
+        case InstructionTy::SRLW: return "srlw";
+        case InstructionTy::SRAW: return "sraw";
+        case InstructionTy::MUL: return "mul";
+        case InstructionTy::MULH: return "mulh";
+        case InstructionTy::MULHSU: return "mulhsu";
+        case InstructionTy::MULHU: return "mulhu";
+        case InstructionTy::DIV: return "div";
+        case InstructionTy::DIVU: return "divu";
+        case InstructionTy::REM: return "rem";
+        case InstructionTy::REMU: return "remu";
+        case InstructionTy::MULW: return "mulw";
+        case InstructionTy::DIVW: return "divw";
+        case InstructionTy::DIVUW: return "divuw";
+        case InstructionTy::REMW: return "remw";
+        case InstructionTy::REMUW: return "remuw";
+        case InstructionTy::FLW: return "flw";
+        case InstructionTy::FSW: return "fsw";
+        case InstructionTy::FADD_S: return "fadd.s";
+        case InstructionTy::FSUB_S: return "fsub.s";
+        case InstructionTy::FMUL_S: return "fmul.s";
+        case InstructionTy::FDIV_S: return "fdiv.s";
+        case InstructionTy::FSGNJ_S: return "fsgnj.s";
+        case InstructionTy::FSGNJN_S: return "fsgnjn.s";
+        case InstructionTy::FEQ_S: return "feq.s";
+        case InstructionTy::FLT_S: return "flt.s";
+        case InstructionTy::FLE_S: return "fle.s";
+        case InstructionTy::FCVT_W_S: return "fcvt.w.s";
+        case InstructionTy::FCVT_S_W: return "fcvt.s.w";
+        case InstructionTy::FMV_W_X: return "fmv.w.x";
+        case InstructionTy::CALL: return "call";
+        case InstructionTy::RET: return "ret";
+        case InstructionTy::J: return "j";
+        case InstructionTy::MV: return "mv";
+        case InstructionTy::NOT: return "not";
+        case InstructionTy::SEQZ: return "seqz";
+        case InstructionTy::SNEZ: return "snez";
+        case InstructionTy::FMV_S: return "fmv.s";
+        case InstructionTy::FNEG_S: return "fneg.s";
+        case InstructionTy::SEXT_W: return "sext.w";
+        case InstructionTy::ZEXT_W: return "zext.w";
+        case InstructionTy::LI: return "li";
+        case InstructionTy::LA: return "lla";
+        default: return "unknown";
+    }
+}
 
 inline bool fitsSigned12(int32_t value) {
     return value >= -2048 && value <= 2047;
@@ -98,6 +186,7 @@ protected:
     std::vector<std::shared_ptr<Operand>> regDef, regUse;
 
     void reg_def_push_back(std::shared_ptr<Operand> reg) {
+        if (!reg) return;
         regDef.push_back(reg);
         if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
             vreg->defUsers.insert(this);
@@ -105,6 +194,7 @@ protected:
     }
     
     void reg_use_push_back(std::shared_ptr<Operand> reg) {
+        if (!reg) return;
         regUse.push_back(reg);
         if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
             vreg->useUsers.insert(this);
@@ -222,7 +312,7 @@ public:
             case 0: return rd;
             case 1: return rs1;
             case 2: return rs2;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in RInstruction");
         }
     }
 
@@ -232,7 +322,7 @@ public:
             case 0: replaceRegisterDef(rd, reg); rd = reg; break;
             case 1: replaceRegisterUse(rs1, reg); rs1 = reg; break;
             case 2: replaceRegisterUse(rs2, reg); rs2 = reg; break;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in RInstruction");
         }
     }
 
@@ -261,7 +351,7 @@ public:
 
     void insertInstruction(size_t index, std::shared_ptr<Instruction> inst) {
         if(index > instructions.size()) {
-            throw ("Invalid insert position");
+            throw std::out_of_range("Invalid insert position in InstructionList");
         }
         instructions.insert(instructions.begin() + index, inst);
     }
@@ -331,7 +421,7 @@ public:
             case 0: return rd;
             case 1: return rs1;
             case 2: return imm;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in IInstruction");
         }
     }
 
@@ -347,7 +437,7 @@ public:
             rs1 = reg; 
         }
         else if (index == 2) imm = std::get<pImmediate>(operand);
-        else throw ("Invalid operand index");
+        else throw std::out_of_range("Invalid operand index in IInstruction");
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
@@ -400,7 +490,7 @@ public:
             case 0: return rs1;
             case 1: return rs2;
             case 2: return imm;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in SInstruction");
         }
     }
 
@@ -408,7 +498,7 @@ public:
         if (index == 0) { auto reg = std::get<AnyRegister>(operand); replaceRegisterUse(rs1, reg); rs1 = reg; }
         else if (index == 1) { auto reg = std::get<AnyRegister>(operand); replaceRegisterUse(rs2, reg); rs2 = reg; }
         else if (index == 2) imm = std::get<pImmediate>(operand);
-        else throw ("Invalid operand index");
+        else throw std::out_of_range("Invalid operand index in SInstruction");
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
@@ -432,7 +522,7 @@ public:
     BInstruction(InstructionTy ty, AnyRegister rs1, AnyRegister rs2, std::shared_ptr<Label> label)
         : ty(ty), rs1(std::move(rs1)), rs2(std::move(rs2)), label(std::move(label)) {
         reg_use_push_back(this->rs1);
-        reg_use_push_back(this->rs2);
+        if (this->rs2) reg_use_push_back(this->rs2);
     }
     InstType getInstType() const override { return InstType::B; }
     
@@ -445,7 +535,7 @@ public:
     std::string output() const override {
         return std::string(RiscVTypeName(ty)) + " "
         + rs1->toString() + ", "
-        + rs2->toString() + ", "
+        + (rs2 ? rs2->toString() : "zero") + ", "
         + label->toString() + "\n";
     }
 
@@ -454,7 +544,7 @@ public:
             case 0: return rs1;
             case 1: return rs2;
             case 2: return label;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in BInstruction");
         }
     }
 
@@ -469,7 +559,7 @@ public:
                 rs2 = std::get<AnyRegister>(operand); 
                 break;
             case 2: label = std::get<std::shared_ptr<Label>>(operand); break;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in BInstruction");
         }
     }
 
@@ -514,7 +604,7 @@ public:
         switch(index) {
             case 0: return rd;
             case 1: return imm;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in UInstruction");
         }
     }
 
@@ -522,7 +612,7 @@ public:
         switch(index) {
             case 0: rd = std::get<AnyRegister>(operand); break;
             case 1: imm = std::get<pImmediate>(operand); break;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in UInstruction");
         }
     }
 
@@ -557,22 +647,16 @@ public:
     bool isReturn() const override { return false; }
     
     std::string output() const override {
-        if (ty == InstructionTy::JALR) {
-            return std::string(RiscVTypeName(ty)) + " "
-                + rd->toString() + ", "
-                + label->toString() + "\n";
-        } else {
-            return std::string(RiscVTypeName(ty)) + " "
-                + rd->toString() + ", "
-                + label->toString() + "\n";
-        }
+        return std::string(RiscVTypeName(ty)) + " "
+            + rd->toString() + ", "
+            + label->toString() + "\n";
     }
 
     OperandVariant getOperand(int index) const override {
         switch(index) {
             case 0: return rd;
             case 1: return label;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in JInstruction");
         }
     }
 
@@ -580,10 +664,11 @@ public:
         switch(index) {
             case 0: rd = std::get<AnyRegister>(operand); break;
             case 1: label = std::get<std::shared_ptr<Label>>(operand); break;
-            default: throw ("Invalid operand index");
+            default: throw std::out_of_range("Invalid operand index in JInstruction");
         }
     }
-     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
+    
+    void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
@@ -660,15 +745,15 @@ public:
     }
 
     OperandVariant getOperand(int index) const override {
-        if (index < 0 || index >= operands.size()) {
-            throw ("Invalid operand index");
+        if (index < 0 || index >= static_cast<int>(operands.size())) {
+            throw std::out_of_range("Invalid operand index in PseudoInstruction");
         }
         return operands[index];
     }
 
     void setOperand(int index, OperandVariant operand) override {
-        if (index < 0 || index >= operands.size()) {
-            throw ("Invalid operand index");
+        if (index < 0 || index >= static_cast<int>(operands.size())) {
+            throw std::out_of_range("Invalid operand index in PseudoInstruction");
         }
         operands[index] = operand;
     }
@@ -715,27 +800,27 @@ public:
     
     OperandVariant getOperand(int index) const override {
         if (index == 0) return callee;
-        if (retReg && index == args.size() + 1) return retReg;
-        if (index > 0 && index <= args.size()) return args[index-1];
-        throw ("Invalid operand index");
+        if (retReg && index == static_cast<int>(args.size()) + 1) return retReg;
+        if (index > 0 && index <= static_cast<int>(args.size())) return args[index-1];
+        throw std::out_of_range("Invalid operand index in Call Instruction");
     }
     
     void setOperand(int index, OperandVariant operand) override {
         if (index == 0) callee = std::get<std::shared_ptr<Label>>(operand);
-        else if (retReg && index == args.size() + 1) {
+        else if (retReg && index == static_cast<int>(args.size()) + 1) {
             auto reg = std::get<AnyRegister>(operand);
             replaceRegisterDef(retReg, reg);
             retReg = reg;
         }
-        else if (index > 0 && index <= args.size()) {
+        else if (index > 0 && index <= static_cast<int>(args.size())) {
             auto reg = std::get<AnyRegister>(operand);
             replaceRegisterUse(args[index-1], reg);
             args[index-1] = reg;
         }
-        else throw ("Invalid operand index");
+        else throw std::out_of_range("Invalid operand index in Call Instruction");
     }
 
-     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
+    void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
         for (auto& arg : args) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(arg)) {
@@ -748,105 +833,9 @@ public:
     }
 };
 
-inline const char* RiscVTypeName(InstructionTy ty) {
-    switch(ty) {
-        case InstructionTy::NOP: return "nop";
-        case InstructionTy::LUI: return "lui";
-        case InstructionTy::AUIPC: return "auipc";
-        case InstructionTy::JAL: return "jal";
-        case InstructionTy::JALR: return "jalr";
-        case InstructionTy::BEQ: return "beq";
-        case InstructionTy::BNE: return "bne";
-        case InstructionTy::BLT: return "blt";
-        case InstructionTy::BGE: return "bge";
-        case InstructionTy::BLTU: return "bltu";
-        case InstructionTy::BGEU: return "bgeu";
-        case InstructionTy::LB: return "lb";
-        case InstructionTy::LH: return "lh";
-        case InstructionTy::LW: return "lw";
-        case InstructionTy::LBU: return "lbu";
-        case InstructionTy::LHU: return "lhu";
-        case InstructionTy::SB: return "sb";
-        case InstructionTy::SH: return "sh";
-        case InstructionTy::SW: return "sw";
-        case InstructionTy::ADDI: return "addi";
-        case InstructionTy::SLTI: return "slti";
-        case InstructionTy::SLTIU: return "sltiu";
-        case InstructionTy::XORI: return "xori";
-        case InstructionTy::ORI: return "ori";
-        case InstructionTy::ANDI: return "andi";
-        case InstructionTy::SLLI: return "slli";
-        case InstructionTy::SRLI: return "srli";
-        case InstructionTy::SRAI: return "srai";
-        case InstructionTy::ADD: return "add";
-        case InstructionTy::SUB: return "sub";
-        case InstructionTy::SLL: return "sll";
-        case InstructionTy::SLT: return "slt";
-        case InstructionTy::SLTU: return "sltu";
-        case InstructionTy::XOR: return "xor";
-        case InstructionTy::SRL: return "srl";
-        case InstructionTy::SRA: return "sra";
-        case InstructionTy::OR: return "or";
-        case InstructionTy::AND: return "and";
-        case InstructionTy::LWU: return "lwu";
-        case InstructionTy::LD: return "ld";
-        case InstructionTy::SD: return "sd";
-        case InstructionTy::ADDIW: return "addiw";
-        case InstructionTy::SLLIW: return "slliw";
-        case InstructionTy::SRLIW: return "srliw";
-        case InstructionTy::SRAIW: return "sraiw";
-        case InstructionTy::ADDW: return "addw";
-        case InstructionTy::SUBW: return "subw";
-        case InstructionTy::SLLW: return "sllw";
-        case InstructionTy::SRLW: return "srlw";
-        case InstructionTy::SRAW: return "sraw";
-        case InstructionTy::MUL: return "mul";
-        case InstructionTy::MULH: return "mulh";
-        case InstructionTy::MULHSU: return "mulhsu";
-        case InstructionTy::MULHU: return "mulhu";
-        case InstructionTy::DIV: return "div";
-        case InstructionTy::DIVU: return "divu";
-        case InstructionTy::REM: return "rem";
-        case InstructionTy::REMU: return "remu";
-        case InstructionTy::MULW: return "mulw";
-        case InstructionTy::DIVW: return "divw";
-        case InstructionTy::DIVUW: return "divuw";
-        case InstructionTy::REMW: return "remw";
-        case InstructionTy::REMUW: return "remuw";
-        case InstructionTy::FLW: return "flw";
-        case InstructionTy::FSW: return "fsw";
-        case InstructionTy::FADD_S: return "fadd.s";
-        case InstructionTy::FSUB_S: return "fsub.s";
-        case InstructionTy::FMUL_S: return "fmul.s";
-        case InstructionTy::FDIV_S: return "fdiv.s";
-        case InstructionTy::FSGNJ_S: return "fsgnj.s";
-        case InstructionTy::FSGNJN_S: return "fsgnjn.s";
-        case InstructionTy::FEQ_S: return "feq.s";
-        case InstructionTy::FLT_S: return "flt.s";
-        case InstructionTy::FLE_S: return "fle.s";
-        case InstructionTy::FCVT_W_S: return "fcvt.w.s";
-        case InstructionTy::FCVT_S_W: return "fcvt.s.w";
-        case InstructionTy::FMV_W_X: return "fmv.w.x";
-        case InstructionTy::CALL: return "call";
-        case InstructionTy::RET: return "ret";
-        case InstructionTy::J: return "j";
-        case InstructionTy::MV: return "mv";
-        case InstructionTy::NOT: return "not";
-        case InstructionTy::SEQZ: return "seqz";
-        case InstructionTy::SNEZ: return "snez";
-        case InstructionTy::FMV_S: return "fmv.s";
-        case InstructionTy::FNEG_S: return "fneg.s";
-        case InstructionTy::SEXT_W: return "sext.w";
-        case InstructionTy::ZEXT_W: return "zext.w";
-        case InstructionTy::LI: return "li";
-        case InstructionTy::LA: return "lla";
-        default: return "unknown";
-    }
-}
-
-inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty, 
-    const std::vector<OperandVariant>& operands) {
+// 🚀 核心收网：在这里直接塞入它的闭环物理实例化实现，让内联彻底本地化，链接时绝不再抛出Undefined Reference！
+inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty, const std::vector<OperandVariant>& operands) {
     return std::make_shared<PseudoInstruction>(ty, operands);
 }
 
-}
+} // namespace backend

@@ -441,7 +441,9 @@ public:
         return nextStackOffset;
     }
     size_t reserveSpillSlot() {
-        return getAllocatedStackBytes() + (spillSlotCount++ * 8);
+        size_t offset = getAllocatedStackBytes() + (spillSlotCount * 8);
+        spillSlotCount++;
+        return offset;
     }
     size_t getFixedFrameBytes() const {
         size_t total = getAllocatedStackBytes() + spillSlotCount * 8;

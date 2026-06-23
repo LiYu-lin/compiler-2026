@@ -98,7 +98,7 @@ AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
         block->addInstruction(std::make_shared<IInstruction>(
             InstructionTy::ADDI,
             temp,
-            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(2), // 🚀 稳固：直接强制对接物理 sp 寄存器
             std::make_shared<Immediate>(static_cast<int32_t>(
                 block->getParentFunction()->getAllocaOffset(allocaInst)))));
         return temp;
@@ -127,14 +127,14 @@ AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
             block->addInstruction(std::make_shared<IInstruction>(
                 InstructionTy::LD,
                 temp,
-                VirtualRegister::createStackPointerRef(),
+                PhysicalRegister::get(2), // 🚀 稳固：直接强制对接物理 sp 寄存器
                 std::make_shared<Immediate>(static_cast<int32_t>(it->second))));
             return temp;
         }
     }
     if (auto intConst = dynamic_cast<IR::ConstantInt32*>(value)) {
         if (intConst->getValue() == 0) {
-            return VirtualRegister::createZero();
+            return PhysicalRegister::get(0); // 直接返回物理 zero 寄存器
         }
 
         auto temp = VirtualRegister::createTemp(false);
@@ -166,7 +166,7 @@ AnyRegister materializeValue(AsmBasicBlock* block, IR::Value* value) {
 
 void emitScalarConstantStore(AsmBasicBlock* block, AnyRegister base, IR::Constant* constant, int32_t offset) {
     if (auto *intConst = dynamic_cast<IR::ConstantInt32*>(constant)) {
-        auto value = intConst->getValue() == 0 ? VirtualRegister::createZero() : materializeValue(block, constant);
+        auto value = intConst->getValue() == 0 ? PhysicalRegister::get(0) : materializeValue(block, constant);
         block->addInstruction(std::make_shared<SInstruction>(
             InstructionTy::SW,
             base,
@@ -224,7 +224,7 @@ void emitConstantArrayStoresToAlloca(
 
     auto stackOffset = static_cast<int32_t>(
         block->getParentFunction()->getAllocaOffset(allocaInst)) + offset;
-    emitScalarConstantStore(block, VirtualRegister::createStackPointerRef(), constant, stackOffset);
+    emitScalarConstantStore(block, PhysicalRegister::get(2), constant, stackOffset);
 }
 
 InstructionTy loadTypeForValue(IR::Value* value) {
@@ -329,7 +329,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertLoadInstruction(IR::LoadInstr
         return std::make_shared<IInstruction>(
             inst->getType()->isFloatTy() ? InstructionTy::FLW : InstructionTy::LW,
             rd,
-            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(2),
             std::make_shared<Immediate>(static_cast<int32_t>(parentFunction->getAllocaOffset(allocaInst))));
     }
 
@@ -357,7 +357,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertStoreInstruction(IR::StoreIns
         auto val = materializeValue(this, inst->getSrc());
         return std::make_shared<SInstruction>(
             storeTypeForValue(inst->getSrc()),
-            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(2),
             val,
             std::make_shared<Immediate>(static_cast<int32_t>(parentFunction->getAllocaOffset(allocaInst))));
     }
@@ -414,7 +414,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
         addInstruction(std::make_shared<IInstruction>(
             InstructionTy::ADDI,
             base,
-            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(2),
             std::make_shared<Immediate>(static_cast<int32_t>(parentFunction->getAllocaOffset(allocaInst)))));
     } else {
         base = materializeValue(this, inst->getOperand(0));
@@ -427,7 +427,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
     addInstruction(std::make_shared<IInstruction>(
         InstructionTy::ADDI,
         offset,
-        VirtualRegister::createZero(),
+        PhysicalRegister::get(0),
         std::make_shared<Immediate>(0)));
 
     IR::pType indexedType = inst->getOperand(0)->getType()->getPointerBase();
@@ -457,7 +457,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertGEPInstruction(IR::GetElement
             addInstruction(std::make_shared<IInstruction>(
                 InstructionTy::ADDI,
                 size,
-                VirtualRegister::createZero(),
+                PhysicalRegister::get(0),
                 std::make_shared<Immediate>(elementBytes)));
             addInstruction(std::make_shared<RInstruction>(
                 InstructionTy::MUL,
@@ -499,7 +499,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertUnaryInstruction(IR::UnaryIns
             return std::make_shared<RInstruction>(
                 InstructionTy::SUB, 
                 dst, 
-                VirtualRegister::createZero(), 
+                PhysicalRegister::get(0), 
                 src);
                 
         case IR::Instruction::FNeg:
@@ -559,7 +559,7 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertBranchInstruction(IR::BranchI
     addInstruction(std::make_shared<BInstruction>(
         InstructionTy::BNE,
         cond,
-        VirtualRegister::createZero(),
+        PhysicalRegister::get(0),
         std::make_shared<Label>(trueLabel)));
     
     return createPseudoInstruction(
@@ -622,60 +622,47 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
         allocatedArgs[i] = materializeValue(this, callArgs[i]);
     }
 
+    // 🚀 焊死物理路由：彻底切断虚拟 sp 别名介入，全面采用物理寄存器 2 号进行对齐
     addInstruction(std::make_shared<IInstruction>(
-        InstructionTy::ADDI,
-        VirtualRegister::createStackPointerRef(),
-        VirtualRegister::createStackPointerRef(),
+        InstructionTy::ADDI, PhysicalRegister::get(2), PhysicalRegister::get(2),
         std::make_shared<Immediate>(-callFrameBytes)));
 
     for (size_t i = 8; i < callArgs.size(); ++i) {
         addInstruction(std::make_shared<SInstruction>(
             storeTypeForValue(callArgs[i]),
-            VirtualRegister::createStackPointerRef(),
+            PhysicalRegister::get(2),
             allocatedArgs[i],
             std::make_shared<Immediate>(static_cast<int32_t>((i - 8) * 8))));
     }
 
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::SD,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg),
+            InstructionTy::SD, PhysicalRegister::get(2), PhysicalRegister::get(reg),
             std::make_shared<Immediate>(intSaveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::SD,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg),
+            InstructionTy::SD, PhysicalRegister::get(2), PhysicalRegister::get(reg),
             std::make_shared<Immediate>(intSaveOffset + (reg - 25) * 8)));
     }
     for (int reg = 10; reg <= 17; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::SD,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg),
+            InstructionTy::SD, PhysicalRegister::get(2), PhysicalRegister::get(reg),
             std::make_shared<Immediate>(intSaveOffset + 64 + (reg - 10) * 8)));
     }
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::FSW,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg, true),
+            InstructionTy::FSW, PhysicalRegister::get(2), PhysicalRegister::get(reg, true),
             std::make_shared<Immediate>(floatSaveOffset + (reg - 5) * 4)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::FSW,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg, true),
+            InstructionTy::FSW, PhysicalRegister::get(2), PhysicalRegister::get(reg, true),
             std::make_shared<Immediate>(floatSaveOffset + 12 + (reg - 28) * 4)));
     }
     for (int reg = 10; reg <= 17; ++reg) {
         addInstruction(std::make_shared<SInstruction>(
-            InstructionTy::FSW,
-            VirtualRegister::createStackPointerRef(),
-            PhysicalRegister::get(reg, true),
+            InstructionTy::FSW, PhysicalRegister::get(2), PhysicalRegister::get(reg, true),
             std::make_shared<Immediate>(floatSaveOffset + 32 + (reg - 10) * 4)));
     }
 
@@ -693,51 +680,37 @@ std::shared_ptr<Instruction> AsmBasicBlock::convertCallInstruction(IR::CallInstr
 
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LD,
-            PhysicalRegister::get(reg),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::LD, PhysicalRegister::get(reg), PhysicalRegister::get(2),
             std::make_shared<Immediate>(intSaveOffset + (reg - 5) * 8)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LD,
-            PhysicalRegister::get(reg),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::LD, PhysicalRegister::get(reg), PhysicalRegister::get(2),
             std::make_shared<Immediate>(intSaveOffset + (reg - 25) * 8)));
     }
     for (int reg = 10; reg <= 17; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::LD,
-            PhysicalRegister::get(reg),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::LD, PhysicalRegister::get(reg), PhysicalRegister::get(2),
             std::make_shared<Immediate>(intSaveOffset + 64 + (reg - 10) * 8)));
     }
     for (int reg = 5; reg <= 7; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::FLW,
-            PhysicalRegister::get(reg, true),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::FLW, PhysicalRegister::get(reg, true), PhysicalRegister::get(2),
             std::make_shared<Immediate>(floatSaveOffset + (reg - 5) * 4)));
     }
     for (int reg = 28; reg <= 31; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::FLW,
-            PhysicalRegister::get(reg, true),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::FLW, PhysicalRegister::get(reg, true), PhysicalRegister::get(2),
             std::make_shared<Immediate>(floatSaveOffset + 12 + (reg - 28) * 4)));
     }
     for (int reg = 10; reg <= 17; ++reg) {
         addInstruction(std::make_shared<IInstruction>(
-            InstructionTy::FLW,
-            PhysicalRegister::get(reg, true),
-            VirtualRegister::createStackPointerRef(),
+            InstructionTy::FLW, PhysicalRegister::get(reg, true), PhysicalRegister::get(2),
             std::make_shared<Immediate>(floatSaveOffset + 32 + (reg - 10) * 4)));
     }
 
     addInstruction(std::make_shared<IInstruction>(
-        InstructionTy::ADDI,
-        VirtualRegister::createStackPointerRef(),
-        VirtualRegister::createStackPointerRef(),
+        InstructionTy::ADDI, PhysicalRegister::get(2), PhysicalRegister::get(2),
         std::make_shared<Immediate>(callFrameBytes)));
 
     if (!inst->getType()->isVoidTy()) {

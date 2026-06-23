@@ -3,7 +3,8 @@
 #include <memory>
 #include <utility>
 #include <cassert>
-
+#include <cstdint>
+#include <cstring>
 namespace backend {
 
 class Immediate : public Operand {
@@ -11,98 +12,95 @@ public:
     enum class ImmType {
         Int,
         Float,
-        LabelOffset,  // 用于标签偏移
-        HiLoSplit     // 用于高低位分�?
+        LabelOffset,  
+        HiLoSplit     
     };
 
     enum class SplitPart { HI20, LO12 };
 
+    // 适配 RV64：全量升级为 int64_t 存储，杜绝大指针截断
     Immediate(size_t value)
         : Operand(OpType::IntImm),
-        immType(ImmType::Int),
-        intValue(static_cast<int32_t>(value)) {
-        assert(value <= INT32_MAX && "Size too large for immediate");}
-        
-    // 整数立即数构造函�?
+          immType(ImmType::Int),
+          int64Value(static_cast<int64_t>(value)) {}
+         
     Immediate(int32_t value)
         : Operand(OpType::IntImm), 
           immType(ImmType::Int),
-          intValue(value) {}
+          int64Value(static_cast<int64_t>(value)) {}
 
-    // 浮点立即数构造函�?
+    Immediate(int64_t value)
+        : Operand(OpType::IntImm), 
+          immType(ImmType::Int),
+          int64Value(value) {}
+
     Immediate(float value)
         : Operand(OpType::FloatImm),
           immType(ImmType::Float),
           floatValue(value) {}
 
-    // 标签偏移构造函�?
     Immediate(const std::string& label, int32_t offset = 0)
         : Operand(OpType::Label),
           immType(ImmType::LabelOffset),
+          int64Value(0), // 强行对齐 Union 空间，防止脏数据
           labelValue(label),
           offsetValue(offset) {}
 
-    // 高低位分裂构造函�?
     Immediate(std::shared_ptr<Immediate> origin, SplitPart part)
-        : Operand(part == SplitPart::HI20 ? OpType::IntImm : OpType::IntImm),
+        : Operand(OpType::IntImm),
           immType(ImmType::HiLoSplit),
+          int64Value(0),
           originImm(std::move(origin)),
           splitPart(part) {
         assert(originImm && "Origin immediate cannot be null");
     }
 
-    // 获取立即数类�?
     ImmType getImmType() const { return immType; }
 
-    // 获取整数值（仅对Int类型有效�?
-    int32_t getIntValue() const {
+    int64_t getIntValue() const {
         assert(immType == ImmType::Int && "Not an integer immediate");
-        return intValue;
+        return int64Value;
     }
 
-    // 获取浮点值（仅对Float类型有效�?
     float getFloatValue() const {
         assert(immType == ImmType::Float && "Not a float immediate");
         return floatValue;
     }
 
-    // 获取标签值（仅对LabelOffset类型有效�?
     const std::string& getLabelValue() const {
         assert(immType == ImmType::LabelOffset && "Not a label offset");
         return labelValue;
     }
 
-    // 获取偏移值（仅对LabelOffset类型有效�?
     int32_t getOffsetValue() const {
         assert(immType == ImmType::LabelOffset && "Not a label offset");
         return offsetValue;
     }
 
-    // 获取原始立即数（仅对HiLoSplit类型有效�?
     std::shared_ptr<Immediate> getOriginImm() const {
         assert(immType == ImmType::HiLoSplit && "Not a split immediate");
         return originImm;
     }
 
-    // 获取分裂部分（仅对HiLoSplit类型有效�?
     SplitPart getSplitPart() const {
         assert(immType == ImmType::HiLoSplit && "Not a split immediate");
         return splitPart;
     }
 
-    // 计算实际值（用于代码生成�?
-    int32_t getEncodedValue() const {
+    int64_t getEncodedValue() const {
         switch (immType) {
             case ImmType::Int:
-                return intValue;
-            case ImmType::Float:
-                return *reinterpret_cast<const int32_t*>(&floatValue);
+                return int64Value;
+            case ImmType::Float: {
+                int32_t bits = 0;
+                std::memcpy(&bits, &floatValue, sizeof(float));
+                return static_cast<int64_t>(bits);
+            }
             case ImmType::LabelOffset:
-                return offsetValue;  // 实际处理需要重定位
+                return static_cast<int64_t>(offsetValue);  
             case ImmType::HiLoSplit:
-                return originImm->getEncodedValue();  // 由具体指令处理高低位
+                return originImm->getEncodedValue();  
             default:
-                assert(false && "Unknown immediate type");
                 return 0;
         }
     }
@@ -110,7 +108,7 @@ public:
     std::string toString() const override {
         switch (immType) {
             case ImmType::Int:
-                return std::to_string(intValue);
+                return std::to_string(int64Value);
             case ImmType::Float:
                 return std::to_string(floatValue);
             case ImmType::LabelOffset:
@@ -126,40 +124,30 @@ public:
 private:
     ImmType immType;
     union {
-        int32_t intValue;
+        int64_t int64Value;
         float floatValue;
     };
     
-    // 用于LabelOffset类型
     std::string labelValue;
     int32_t offsetValue;
     
-    // 用于HiLoSplit类型
     std::shared_ptr<Immediate> originImm;
     SplitPart splitPart;
 };
 
-// 工厂函数
-inline std::shared_ptr<Immediate> createIntImmediate(int32_t value) {
+inline std::shared_ptr<Immediate> createIntImmediate(int64_t value) {
     return std::make_shared<Immediate>(value);
 }
-
 inline std::shared_ptr<Immediate> createFloatImmediate(float value) {
     return std::make_shared<Immediate>(value);
 }
-
-inline std::shared_ptr<Immediate> createLabelOffset(
-    const std::string& label, int32_t offset = 0) {
+inline std::shared_ptr<Immediate> createLabelOffset(const std::string& label, int32_t offset = 0) {
     return std::make_shared<Immediate>(label, offset);
 }
-
-inline std::shared_ptr<Immediate> createHi20Split(
-    std::shared_ptr<Immediate> origin) {
+inline std::shared_ptr<Immediate> createHi20Split(std::shared_ptr<Immediate> origin) {
     return std::make_shared<Immediate>(std::move(origin), Immediate::SplitPart::HI20);
 }
-
-inline std::shared_ptr<Immediate> createLo12Split(
-    std::shared_ptr<Immediate> origin) {
+inline std::shared_ptr<Immediate> createLo12Split(std::shared_ptr<Immediate> origin) {
     return std::make_shared<Immediate>(std::move(origin), Immediate::SplitPart::LO12);
 }
 
