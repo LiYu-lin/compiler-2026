@@ -1,5 +1,4 @@
 #include "PassManager.h"
-
 #include <iostream>
 
 namespace IR {
@@ -8,14 +7,30 @@ PassManager::PassManager(Module& module, PassManagerOptions options)
     : module(module), options(std::move(options)) {}
 
 bool PassManager::run() {
-    bool changed = false;
-    for (const auto& pass : passes) {
-        dumpBefore(*pass);
-        changed |= pass->run();
-        dumpAfter(*pass);
-        verifyAfter(*pass);
+    bool overall_changed = false;
+    int manager_safety_counter = 0;
+    
+    while (true) {
+        if (++manager_safety_counter > 10) {
+            break;
+        }
+        
+        bool current_round_changed = false;
+        for (const auto& pass : passes) {
+            dumpBefore(*pass);
+            bool pass_changed = pass->run();
+            current_round_changed |= pass_changed;
+            overall_changed |= pass_changed;
+            dumpAfter(*pass);
+            verifyAfter(*pass);
+        }
+        
+        if (!current_round_changed) {
+            break;
+        }
     }
-    return changed;
+    
+    return overall_changed;
 }
 
 void PassManager::dumpBefore(const ModulePass& pass) const {
@@ -51,8 +66,7 @@ void PassManager::verifyAfter(const ModulePass& pass) const {
         return;
     }
 
-    // Placeholder hook for a future IR verifier.
     std::cerr << "[verify] " << pass.name() << " (not implemented yet)\n";
 }
 
-}  // namespace IR
+}
