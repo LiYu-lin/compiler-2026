@@ -1,34 +1,26 @@
-# 在CMAKE_CXX_FLAGS设置前添加MSVC检查
+cmake_minimum_required(VERSION 3.12.0)
+project(SysY2026 VERSION 0.1.0 LANGUAGES C CXX)
+
+option(ENABLE_OPTIMIZATION "Enable project optimizations (adds -O2 or /O2 and defines)" OFF)
+
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
 else()
-    # 对于MinGW/GCC启用并行编译
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
-    add_compile_options(-march=native)
     if(MINGW OR WIN32)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static -static-libgcc -static-libstdc++")
     endif()
 endif()
 
-cmake_minimum_required(VERSION 3.12.0)
-project(SysY2026 VERSION 0.1.0 LANGUAGES C CXX)
-
-# Project-wide optimization switch (default OFF)
-option(ENABLE_OPTIMIZATION "Enable project optimizations (adds -O2 or /O2 and defines)" OFF)
-
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    # C++ standard
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_EXTENSIONS OFF)
 
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
-    # Module path
     set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
-    # C Test
     include(CTest)
     enable_testing()
 endif()
@@ -36,7 +28,6 @@ endif()
 include(AuxFunctions)
 include(GNUInstallDirs)
 
-# Subdirectories
 add_subdirectory(lib)
 add_subdirectory(include)
 
@@ -45,7 +36,6 @@ get_property(lib_header_files GLOBAL PROPERTY PROJECT_LIBRARY_HEADERS)
 
 add_library(${PROJECT_NAME} STATIC ${lib_source_files})
 
-# Target
 target_include_directories(${PROJECT_NAME} PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/Parse
@@ -66,7 +56,6 @@ add_executable(sysy_compiler ${CMAKE_CURRENT_SOURCE_DIR}/tools/sysy_compiler.cpp
 target_link_libraries(sysy_compiler PUBLIC ${PROJECT_NAME})
 target_include_directories(sysy_compiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# If project-wide optimization is enabled, add platform-appropriate flags and a define
 if(ENABLE_OPTIMIZATION)
     if(MSVC)
         set(OPT_FLAGS "/O2")
