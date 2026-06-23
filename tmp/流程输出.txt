@@ -1,0 +1,659 @@
+先确认可执行文件和样例路径，然后运行一个完整命令来导出 AST、IR、寄存器分配和汇编。
+
+Ran terminal command: if exist build\compiler.exe (echo compiler.exe exists) else (echo compiler.exe missing); if exist build\sysy_compiler.exe (echo sysy_compiler.exe exists) else (echo sysy_compiler.exe missing); dir /b build | findstr /i "compiler.exe sysy_compiler.exe"
+
+我先确认本地编译器可执行文件和可用输入样例，再用正确命令导出并打印所需输出。
+
+Ran terminal command: Get-ChildItem -Path build -Filter *.exe | Select-Object -ExpandProperty Name; Get-ChildItem -Path test\custom -File | Select-Object -ExpandProperty Name
+
+先查一查编译器入口参数支持哪些输出选项，再执行一个样例测试。
+
+Searched for regex `dump-ast|emit-ir|emit-raw-ir|emit-asm|register allocation|regalloc|print register|dump` (`**/*.{cpp,h,cc,c}`), 72 results
+
+先确认命令选项和是否有寄存器分配输出路径，然后运行样例来抓取结果。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/tools/sysy_compiler.cpp)
+
+先确认目前编译器是否直接支持打印寄存器分配细节，并选一个样例运行。
+
+Searched for regex `RegAlloca|register allocation|regAlloca|dump.*reg|debug.*reg|comment|asmModule|AsmModule` (`**/*.{cpp,h}`), 29 results
+
+先检查后端是否提供寄存器分配输出或调试注释，然后再运行完整导出。
+
+Searched for regex `class RegAlloca|void .*RegAlloca|RegAlloca::|output\(|asmModule\.|dump.*Reg|regalloc|debug` (`**/include/backend/**/*.h`), 29 results
+
+先确认后端是否有寄存器分配输出接口，再用一个样例导出 AST、IR 和汇编。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/include/backend/component.h#520-520), lines 520 to 592
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/include/backend/component.h#1-1), lines 1 to 220
+
+先读取一个样例源文件内容，以便选出适合演示 AST、IR 和汇编的输入。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/test/custom/short.sy)
+
+查看后端寄存器分配实现并确认是否有可导出的分配/注释输出。
+
+Searched for regex `class RegAlloca|RegAlloca\(|void dump|dump.*allocation|allocation.*output|spill|spill.*register|VirtualRegister|PhysicalRegister` (`**/*.{cpp,h}`), 200 results
+
+我先确认后端是否已有寄存器分配输出接口，否则直接用汇编中的寄存器映射说明分配结果。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/include/backend/RiscVOperand/OpRegister.h)
+
+先执行编译器命令并保存一个代表样例的 AST、IR、汇编输出，便于直接展示。
+
+Ran terminal command: .\build\compiler.exe --dump-ast test\custom\short.sy -o build\short.ast.txt; .\build\compiler.exe --emit-ir test\custom\short.sy -o build\short.ir.txt; .\build\compiler.exe -S test\custom\short.sy -o build\short.s; echo done
+
+我已生成样例输出文件，接下来读取 AST、IR、汇编结果，并检查是否可直接从汇编推断寄存器分配。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/build/short.ast.txt)
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/build/short.ir.txt)
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/build/short.s#1-1), lines 1 to 220
+
+现在获取完整 short.s 汇编输出，并确认是否有直接可打印的寄存器分配信息。
+
+Ran terminal command: Get-Content build\short.s | Measure-Object -Line; Get-Content build\short.s -TotalCount 360
+
+我先确认源码里是否有可读取的寄存器分配数据结构，再用它来补充“寄存器分配”说明。
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/lib/backend/AsmFunction.cpp#1-1), lines 1 to 260
+
+Read [](file:///d%3A/Compiler_Code/Compiler-Competition-2025/lib/backend/AsmFunction.cpp#260-260), lines 260 to 417
+
+我已经生成并导出一个示例 short.sy 的输出。
+
+命令：
+```powershell
+cd D:\Compiler_Code\Compiler-Competition-2025
+.\build\compiler.exe --dump-ast test\custom\short.sy -o build\short.ast.txt
+.\build\compiler.exe --emit-ir test\custom\short.sy -o build\short.ir.txt
+.\build\compiler.exe -S test\custom\short.sy -o build\short.s
+```
+
+---
+
+## 1. AST 输出
+
+```text
+CompUnit
+  FuncDef: f -> int
+    Params:
+      FuncFParams
+    Body:
+      Block
+        BlockItem
+          Stmt
+            ExpStmt
+              Exp
+                UnaryExp
+                  FunctionCall: putint
+                    Args:
+                      Exp
+                        UnaryExp
+                          PrimaryExp: 1
+        BlockItem
+          Stmt
+            ReturnStmt
+              Exp
+                UnaryExp
+                  PrimaryExp: 1
+  FuncDef: g -> int
+    Params:
+      FuncFParams
+    Body:
+      Block
+        BlockItem
+          Stmt
+            ExpStmt
+              Exp
+                UnaryExp
+                  FunctionCall: putint
+                    Args:
+                      Exp
+                        UnaryExp
+                          PrimaryExp: 2
+        BlockItem
+          Stmt
+            ReturnStmt
+              Exp
+                UnaryExp
+                  PrimaryExp: 0
+  FuncDef: main -> int
+    Params:
+      FuncFParams
+    Body:
+      Block
+        BlockItem
+          Decl
+            VarDecl
+              BType: int
+              VarDef: total
+                InitValue:
+                  InitVal
+                    Exp
+                      UnaryExp
+                        PrimaryExp: 0
+        BlockItem
+          Stmt
+            ExpStmt
+        BlockItem
+          Stmt
+            IfStmt
+              Condition:
+                Cond
+                  LAndExp
+                    LogicalAnd
+                      Left:
+                        UnaryExp
+                          FunctionCall: f
+                      Right:
+                        UnaryExp
+                          FunctionCall: g
+              Then:
+                Stmt
+                  AssignStmt
+                    LVal:
+                      LVal: total
+                    Expr:
+                      Exp
+                        AddExp
+                          AddOp: +
+                            Left:
+                              UnaryExp
+                                PrimaryExp
+                                  LVal: total
+                            Right:
+                              UnaryExp
+                                PrimaryExp: 1
+        BlockItem
+          Stmt
+            WhileStmt
+              Condition:
+                Cond
+                  LAndExp
+                    LogicalAnd
+                      Left:
+                        UnaryExp
+                          FunctionCall: g
+                      Right:
+                        UnaryExp
+                          FunctionCall: f
+              Body:
+                Stmt
+                  AssignStmt
+                    LVal:
+                      LVal: total
+                    Expr:
+                      Exp
+                        AddExp
+                          AddOp: +
+                            Left:
+                              UnaryExp
+                                PrimaryExp
+                                  LVal: total
+                            Right:
+                              UnaryExp
+                                PrimaryExp: 1
+        BlockItem
+          Stmt
+            ReturnStmt
+              Exp
+                UnaryExp
+                  PrimaryExp
+                    LVal: total
+```
+
+---
+
+## 2. IR 输出
+
+```text
+module sysy_module
+declare function @memset
+declare function @getint
+declare function @getch
+declare function @getarray
+declare function @getfloat
+declare function @getfarray
+declare function @putint
+declare function @putch
+declare function @putarray
+declare function @putfloat
+declare function @putfarray
+declare function @starttime
+declare function @stoptime
+declare function @_sysy_starttime
+declare function @_sysy_stoptime
+define function @f {
+Label_1(2):
+	call void @putint(int 1)
+	return i32 1
+}
+define function @g {
+Label_2(2):
+	call void @putint(int 2)
+	return i32 0
+}
+define function @main {
+Label_3(5):
+	@2 = alloca int
+	store i32 0, ptr @2
+	@4 = call int @f()
+	@5 = ne int @4, 0
+	if i32 @5, goto label %Label_7, then label %Label_5
+Label_4(4):
+	@10 = load i32, ptr @2
+	@11 = add int @10 1
+	store i32 @11, ptr @2
+	goto label %Label_6
+Label_5(1):
+	goto label %Label_6
+Label_6(1):
+	goto label %Label_8
+Label_7(3):
+	@7 = call int @g()
+	@8 = ne int @7, 0
+	if i32 @8, goto label %Label_4, then label %Label_5
+Label_8(3):
+	@16 = call int @g()
+	@17 = ne int @16, 0
+	if i32 @17, goto label %Label_11, then label %Label_10
+Label_9(4):
+	@22 = load i32, ptr @2
+	@23 = add int @22 1
+	store i32 @23, ptr @2
+	goto label %Label_8
+Label_10(2):
+	@26 = load i32, ptr @2
+	return i32 @26
+Label_11(3):
+	@19 = call int @f()
+	@20 = ne int @19, 0
+	if i32 @20, goto label %Label_9, then label %Label_10
+}
+```
+
+---
+
+## 3. 寄存器分配说明
+
+该编译器后端没有直接提供单独的“寄存器分配 dump”选项，所以我用实际汇编和后端实现推断：
+
+- 后端采用基于活跃性分析 + 干涉图着色的寄存器分配；
+- 可分配整数物理寄存器集为：
+  - `t0`, `t1`, `t2`, `t3`, `t4`, `t5`
+- 可分配浮点物理寄存器集为：
+  - `ft0`…`ft11`（但实际保存时使用 `ft5`..`ft11` 作为 caller-save 保存区）
+- 不能直接分配时会 spill 到栈；
+- 函数调用前后会保存 caller-saved 整数 `t0..t6` 和浮点 `ft5..ft11`，并保存 `a0..a7` 参数寄存器。
+
+在 `main` 的汇编里，寄存器分配可见：
+- `a0` 用于接收函数返回值；
+- `t5` 临时保存 `a0`；
+- `t4` 用于比较条件；
+- `t2`, `t3` 用于 `total` 的加载/计算；
+- 由于 `main` 内部有多个调用/分支，编译器在调用前后保存 `t0..t6`、`ft5..ft11` 以保证调用安全。
+
+---
+
+## 4. 生成的汇编输出（完整）
+
+```asm
+	.text
+	.globl f
+	.type f, @function
+f:
+	addi sp, sp, -16
+	sd ra, 8(sp)
+Label_1:
+	li t0, 1
+	sw t0, 0(sp)
+	addi sp, sp, -192
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	sd a0, 64(sp)
+	sd a1, 72(sp)
+	sd a2, 80(sp)
+	sd a3, 88(sp)
+	sd a4, 96(sp)
+	sd a5, 104(sp)
+	sd a6, 112(sp)
+	sd a7, 120(sp)
+	fsw ft5, 128(sp)
+	fsw ft6, 132(sp)
+	fsw ft7, 136(sp)
+	fsw ft8, 140(sp)
+	fsw ft9, 144(sp)
+	fsw ft10, 148(sp)
+	fsw ft11, 152(sp)
+	fsw fa0, 160(sp)
+	fsw fa1, 164(sp)
+	fsw fa2, 168(sp)
+	fsw fa3, 172(sp)
+	fsw fa4, 176(sp)
+	fsw fa5, 180(sp)
+	fsw fa6, 184(sp)
+	fsw fa7, 188(sp)
+	lw t0, 192(sp)
+	mv a0, t0
+	call putint
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	ld a0, 64(sp)
+	ld a1, 72(sp)
+	ld a2, 80(sp)
+	ld a3, 88(sp)
+	ld a4, 96(sp)
+	ld a5, 104(sp)
+	ld a6, 112(sp)
+	ld a7, 120(sp)
+	flw ft5, 128(sp)
+	flw ft6, 132(sp)
+	flw ft7, 136(sp)
+	flw ft8, 140(sp)
+	flw ft9, 144(sp)
+	flw ft10, 148(sp)
+	flw ft11, 152(sp)
+	flw fa0, 160(sp)
+	flw fa1, 164(sp)
+	flw fa2, 168(sp)
+	flw fa3, 172(sp)
+	flw fa4, 176(sp)
+	flw fa5, 180(sp)
+	flw fa6, 184(sp)
+	flw fa7, 188(sp)
+	addi sp, sp, 192
+	li t0, 1
+	mv a0, t0
+	ld ra, 8(sp)
+	addi sp, sp, 16
+	ret
+	.size f, .-f
+	.globl g
+	.type g, @function
+g:
+	addi sp, sp, -16
+	sd ra, 8(sp)
+Label_2:
+	li t0, 2
+	sw t0, 0(sp)
+	addi sp, sp, -192
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	sd a0, 64(sp)
+	sd a1, 72(sp)
+	sd a2, 80(sp)
+	sd a3, 88(sp)
+	sd a4, 96(sp)
+	sd a5, 104(sp)
+	sd a6, 112(sp)
+	sd a7, 120(sp)
+	fsw ft5, 128(sp)
+	fsw ft6, 132(sp)
+	fsw ft7, 136(sp)
+	fsw ft8, 140(sp)
+	fsw ft9, 144(sp)
+	fsw ft10, 148(sp)
+	fsw ft11, 152(sp)
+	fsw fa0, 160(sp)
+	fsw fa1, 164(sp)
+	fsw fa2, 168(sp)
+	fsw fa3, 172(sp)
+	fsw fa4, 176(sp)
+	fsw fa5, 180(sp)
+	fsw fa6, 184(sp)
+	fsw fa7, 188(sp)
+	lw t0, 192(sp)
+	mv a0, t0
+	call putint
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	ld a0, 64(sp)
+	ld a1, 72(sp)
+	ld a2, 80(sp)
+	ld a3, 88(sp)
+	ld a4, 96(sp)
+	ld a5, 104(sp)
+	ld a6, 112(sp)
+	ld a7, 120(sp)
+	flw ft5, 128(sp)
+	flw ft6, 132(sp)
+	flw ft7, 136(sp)
+	flw ft8, 140(sp)
+	flw ft9, 144(sp)
+	flw ft10, 148(sp)
+	flw ft11, 152(sp)
+	flw fa0, 160(sp)
+	flw fa1, 164(sp)
+	flw fa2, 168(sp)
+	flw fa3, 172(sp)
+	flw fa4, 176(sp)
+	flw fa5, 180(sp)
+	flw fa6, 184(sp)
+	flw fa7, 188(sp)
+	addi sp, sp, 192
+	mv a0, zero
+	ld ra, 8(sp)
+	addi sp, sp, 16
+	ret
+	.size g, .-g
+	.globl main
+	.type main, @function
+main:
+	addi sp, sp, -80
+	sd ra, 72(sp)
+Label_3:
+	sw zero, 0(sp)
+	addi sp, sp, -96
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	fsw ft5, 64(sp)
+	fsw ft6, 68(sp)
+	fsw ft7, 72(sp)
+	fsw ft8, 76(sp)
+	fsw ft9, 80(sp)
+	fsw ft10, 84(sp)
+	fsw ft11, 88(sp)
+	call f
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	flw ft5, 64(sp)
+	flw ft6, 68(sp)
+	flw ft7, 72(sp)
+	flw ft8, 76(sp)
+	flw ft9, 80(sp)
+	flw ft10, 84(sp)
+	flw ft11, 88(sp)
+	addi sp, sp, 96
+	mv t5, a0
+	sub t4, t5, zero
+	snez t4, t4
+	bne t4, zero, Label_7
+	j Label_5
+Label_4:
+	lw t2, 0(sp)
+	sw t2, 4(sp)
+	li t2, 1
+	sw t2, 12(sp)
+	lw t3, 4(sp)
+	lw t2, 12(sp)
+	addw t2, t3, t2
+	sw t2, 0(sp)
+	j Label_6
+Label_5:
+	j Label_6
+Label_6:
+	j Label_8
+Label_7:
+	addi sp, sp, -96
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	fsw ft5, 64(sp)
+	fsw ft6, 68(sp)
+	fsw ft7, 72(sp)
+	fsw ft8, 76(sp)
+	fsw ft9, 80(sp)
+	fsw ft10, 84(sp)
+	fsw ft11, 88(sp)
+	call g
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	flw ft5, 64(sp)
+	flw ft6, 68(sp)
+	flw ft7, 72(sp)
+	flw ft8, 76(sp)
+	flw ft9, 80(sp)
+	flw ft10, 84(sp)
+	flw ft11, 88(sp)
+	addi sp, sp, 96
+	mv t3, a0
+	lw t4, 44(sp)
+	sub t3, t3, t4
+	snez t3, t3
+	bne t3, zero, Label_4
+	j Label_5
+Label_8:
+	addi sp, sp, -96
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	fsw ft5, 64(sp)
+	fsw ft6, 68(sp)
+	fsw ft7, 72(sp)
+	fsw ft8, 76(sp)
+	fsw ft9, 80(sp)
+	fsw ft10, 84(sp)
+	fsw ft11, 88(sp)
+	call g
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	flw ft5, 64(sp)
+	flw ft6, 68(sp)
+	flw ft7, 72(sp)
+	flw ft8, 76(sp)
+	flw ft9, 80(sp)
+	flw ft10, 84(sp)
+	flw ft11, 88(sp)
+	addi sp, sp, 96
+	mv t3, a0
+	lw t2, 52(sp)
+	sub t2, t3, t2
+	snez t2, t2
+	bne t2, zero, Label_11
+	j Label_10
+Label_9:
+	lw t2, 0(sp)
+	sw t2, 20(sp)
+	li t2, 1
+	sw t2, 28(sp)
+	lw t2, 20(sp)
+	lw t3, 28(sp)
+	addw t2, t2, t3
+	sw t2, 0(sp)
+	j Label_8
+Label_10:
+	lw t0, 0(sp)
+	mv a0, t0
+	ld ra, 72(sp)
+	addi sp, sp, 80
+	ret
+Label_11:
+	addi sp, sp, -96
+	sd t0, 0(sp)
+	sd t1, 8(sp)
+	sd t2, 16(sp)
+	sd t3, 24(sp)
+	sd t4, 32(sp)
+	sd t5, 40(sp)
+	sd t6, 48(sp)
+	fsw ft5, 64(sp)
+	fsw ft6, 68(sp)
+	fsw ft7, 72(sp)
+	fsw ft8, 76(sp)
+	fsw ft9, 80(sp)
+	fsw ft10, 84(sp)
+	fsw ft11, 88(sp)
+	call f
+	ld t0, 0(sp)
+	ld t1, 8(sp)
+	ld t2, 16(sp)
+	ld t3, 24(sp)
+	ld t4, 32(sp)
+	ld t5, 40(sp)
+	ld t6, 48(sp)
+	flw ft5, 64(sp)
+	flw ft6, 68(sp)
+	flw ft7, 72(sp)
+	flw ft8, 76(sp)
+	flw ft9, 80(sp)
+	flw ft10, 84(sp)
+	flw ft11, 88(sp)
+	addi sp, sp, 96
+	mv t3, a0
+	lw t2, 36(sp)
+	sub t2, t3, t2
+	snez t2, t2
+	lw t3, 60(sp)
+	bne t2, t3, Label_9
+	j Label_10
+	.size main, .-main
+```
+
+---
+
+### 结论
+
+- AST、IR、汇编已经生成；
+- “寄存器分配”可以从汇编中的寄存器使用和后端实现推断；
+- 如果你要我继续，我可以再帮你把这个示例的寄存器分配映射做成更清晰的表格。
