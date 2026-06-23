@@ -60,6 +60,14 @@ cmake -S . -B build
 cmake --build build
 ```
 
+启用项目级优化开关（默认关闭）：
+
+```powershell
+# 在配置阶段启用优化（将添加编译器优化标志并定义宏 ENABLE_OPTIMIZATION）
+cmake -S . -B build -DENABLE_OPTIMIZATION=ON
+cmake --build build
+```
+
 Windows/MinGW 单配置生成器通常会生成：
 
 ```text

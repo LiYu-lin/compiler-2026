@@ -14,6 +14,9 @@ endif()
 cmake_minimum_required(VERSION 3.12.0)
 project(SysY2026 VERSION 0.1.0 LANGUAGES C CXX)
 
+# Project-wide optimization switch (default OFF)
+option(ENABLE_OPTIMIZATION "Enable project optimizations (adds -O2 or /O2 and defines)" OFF)
+
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # C++ standard
     set(CMAKE_CXX_STANDARD 17)
@@ -62,6 +65,20 @@ target_include_directories(compiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_executable(sysy_compiler ${CMAKE_CURRENT_SOURCE_DIR}/tools/sysy_compiler.cpp)
 target_link_libraries(sysy_compiler PUBLIC ${PROJECT_NAME})
 target_include_directories(sysy_compiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# If project-wide optimization is enabled, add platform-appropriate flags and a define
+if(ENABLE_OPTIMIZATION)
+    if(MSVC)
+        set(OPT_FLAGS "/O2")
+    else()
+        set(OPT_FLAGS "-O2")
+    endif()
+
+    add_compile_definitions(ENABLE_OPTIMIZATION)
+    target_compile_options(${PROJECT_NAME} PRIVATE ${OPT_FLAGS})
+    target_compile_options(compiler PRIVATE ${OPT_FLAGS})
+    target_compile_options(sysy_compiler PRIVATE ${OPT_FLAGS})
+endif()
 
 install(TARGETS ${PROJECT_NAME}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
