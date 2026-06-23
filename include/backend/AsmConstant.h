@@ -74,7 +74,7 @@ public:
     }
 
     std::shared_ptr<Label> createLabel() { 
-        return std::make_shared<Label>(constLabel, false); 
+        return std::make_shared<Label>("." + constLabel, false); 
     }
 };
 
@@ -88,11 +88,11 @@ public:
           constData(val) {}
 
     std::string output() const {
-        return "\t.align 4\n." + constLabel + ":\n" + constData.output();
+        return "\t.align 3\n." + constLabel + ":\n" + constData.output();
     }
 
     std::shared_ptr<Label> createLabel() { 
-        return std::make_shared<Label>(constLabel, false); 
+        return std::make_shared<Label>("." + constLabel, false); 
     }
 };
 

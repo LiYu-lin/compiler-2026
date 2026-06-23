@@ -4,13 +4,13 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <sstream>
 #include "RiscVOperand/OpRegister.h"
 #include "RiscVOperand/OpImmediate.h"
 #include <unordered_set>
 #include "RiscVOperand/OpLabel.h"
 
 namespace backend {
-
 
 using pImmediate = std::shared_ptr<Immediate>;
 using AnyRegister = std::shared_ptr<Operand>;  
@@ -32,31 +32,23 @@ enum class InstType {
 
 enum class InstructionTy {
     NOP,
-    // RV32I
     LUI, AUIPC, JAL, JALR,
     BEQ, BNE, BLT, BGE, BLTU, BGEU,
     LB, LH, LW, LBU, LHU, SB, SH, SW,
     ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI,
     ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND,
-    // RV64I
     LWU, LD, SD, ADDIW, SLLIW, SRLIW, SRAIW,
     ADDW, SUBW, SLLW, SRLW, SRAW,
-    // RV32M
     MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU,
-    // RV64M 
     MULW, DIVW, DIVUW, REMW, REMUW,
-    // RV32F
     FLW, FSW, FMADD_S, FMSUB_S, FNMADD_S, FNMSUB_S,
     FADD_S, FSUB_S, FMUL_S, FDIV_S, FSQRT_S,
     FSGNJ_S, FSGNJN_S, FSGNJX_S, FMIN_S, FMAX_S,
     FCVT_W_S, FCVT_WU_S, FMV_X_W, FEQ_S, FLT_S, FLE_S,
     FCLASS_S, FCVT_S_W, FCVT_S_WU, FMV_W_X,
-    // RV64F
     FCVT_L_S, FCVT_LU_S, FCVT_S_L, FCVT_S_LU,
-    // RV32D + RV64D
     FLD, FSD, FMV_X_D, FMV_D_X,
-    // 伪指�?
-    CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI,
+    CALL, RET, J, MV, FMV_S, FNEG_S, SEXT_W, ZEXT_W, LI, LA,
     CMOV,    
     NOT,     
     SEQZ,    
@@ -64,6 +56,31 @@ enum class InstructionTy {
 };
 
 inline const char* RiscVTypeName(InstructionTy ty);
+
+inline bool fitsSigned12(int32_t value) {
+    return value >= -2048 && value <= 2047;
+}
+
+inline bool isIntImmediate(const pImmediate& imm) {
+    return imm && imm->getImmType() == Immediate::ImmType::Int;
+}
+
+inline std::string chooseScratchRegister(std::initializer_list<std::string> avoid) {
+    const char* candidates[] = {"t6", "t5", "t4", "t3", "t2", "t1", "t0"};
+    for (auto* candidate : candidates) {
+        bool used = false;
+        for (const auto& reg : avoid) {
+            if (reg == candidate) {
+                used = true;
+                break;
+            }
+        }
+        if (!used) {
+            return candidate;
+        }
+    }
+    return "t0";
+}
 
 class Instruction {
 public:
@@ -110,7 +127,8 @@ public:
 
     std::vector<std::shared_ptr<Operand>> getDefRegisters() const { return regDef; }
     std::vector<std::shared_ptr<Operand>> getUseRegisters() const { return regUse; }
-    std::set<rRegister> liveOut;
+    std::unordered_set<rRegister> liveOut;
+    
     template<typename OldRegType, typename NewRegType>
     void replaceRegisterUse(OldRegType oldReg, NewRegType newReg) {
         for (auto& reg : regUse) {
@@ -164,7 +182,6 @@ public:
     }
 };
 
-// R-type
 class RInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd, rs1, rs2;
@@ -176,9 +193,7 @@ public:
         if (rs2) reg_use_push_back(rs2);
     }
     InstType getInstType() const override { return InstType::R; }
-    bool isLoad() const override { 
-        return ty == InstructionTy::LW || ty == InstructionTy::FLW; 
-    }
+    bool isLoad() const override { return false; }
     bool isStore() const override { return false; }
     bool isBranch() const override { return false; }
     bool isCall() const override { return ty == InstructionTy::CALL; }
@@ -186,6 +201,12 @@ public:
     
     std::string output() const override {
         if (!rs2) {
+            if (ty == InstructionTy::FCVT_W_S || ty == InstructionTy::FCVT_WU_S ||
+                ty == InstructionTy::FCVT_L_S || ty == InstructionTy::FCVT_LU_S) {
+                return std::string(RiscVTypeName(ty)) + " " +
+                       rd->toString() + ", " +
+                       rs1->toString() + ", rtz\n";
+            }
             return std::string(RiscVTypeName(ty)) + " " +
                    rd->toString() + ", " +
                    rs1->toString() + "\n";
@@ -254,7 +275,6 @@ public:
     }
 };
 
-// rd = rs1 op imm(12)
 class IInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd, rs1;
@@ -268,17 +288,41 @@ public:
     InstType getInstType() const override { return InstType::I; }
     
     bool isLoad() const override { 
-        return ty >= InstructionTy::LB && ty <= InstructionTy::LHU; 
+        return (ty >= InstructionTy::LB && ty <= InstructionTy::LHU) ||
+            ty == InstructionTy::LWU ||
+            ty == InstructionTy::LD ||
+            ty == InstructionTy::FLW ||
+            ty == InstructionTy::FLD;
     }
+
     bool isStore() const override { return false; }
     bool isBranch() const override { return ty == InstructionTy::JALR; }
     bool isCall() const override { return false; }
     bool isReturn() const override { return false; }
     
     std::string output() const override {
-        return isLoad() ? std::string(RiscVTypeName(ty))  + " " +
-               rd->toString() + ", " + imm->toString() + "(" + rs1->toString() + ")\n"
-               : std::string(RiscVTypeName(ty)) + " " +
+        if (isLoad()) {
+            if (isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+                auto scratch = chooseScratchRegister({rs1->toString()});
+                std::ostringstream out;
+                out << "li " << scratch << ", " << imm->toString() << "\n\t";
+                out << "add " << scratch << ", " << rs1->toString() << ", " << scratch << "\n\t";
+                out << RiscVTypeName(ty) << " " << rd->toString() << ", 0(" << scratch << ")\n";
+                return out.str();
+            }
+            return std::string(RiscVTypeName(ty)) + " " +
+                   rd->toString() + ", " + imm->toString() + "(" + rs1->toString() + ")\n";
+        }
+
+        if (ty == InstructionTy::ADDI && isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+            auto scratch = chooseScratchRegister({rs1->toString()});
+            std::ostringstream out;
+            out << "li " << scratch << ", " << imm->toString() << "\n\t";
+            out << "add " << rd->toString() << ", " << rs1->toString() << ", " << scratch << "\n";
+            return out.str();
+        }
+
+        return std::string(RiscVTypeName(ty)) + " " +
                rd->toString() + ", " + rs1->toString() + ", " + imm->toString() + "\n";
     }
 
@@ -307,9 +351,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -321,7 +363,6 @@ public:
     }
 };
 
-// S-type
 class SInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rs1, rs2;
@@ -341,6 +382,14 @@ public:
     bool isReturn() const override { return false; }
     
     std::string output() const override {
+        if (isIntImmediate(imm) && !fitsSigned12(imm->getIntValue())) {
+            auto scratch = chooseScratchRegister({rs1->toString(), rs2->toString()});
+            std::ostringstream out;
+            out << "li " << scratch << ", " << imm->toString() << "\n\t";
+            out << "add " << scratch << ", " << rs1->toString() << ", " << scratch << "\n\t";
+            out << RiscVTypeName(ty) << " " << rs2->toString() << ", 0(" << scratch << ")\n";
+            return out.str();
+        }
         return std::string(RiscVTypeName(ty)) + " "
            + rs2->toString() + ", "
            + imm->toString() + "(" + rs1->toString() + ")\n";
@@ -363,9 +412,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -377,7 +424,6 @@ public:
     }
 };
 
-// B-type指令实现
 class BInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rs1, rs2;
@@ -428,10 +474,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
-        // 然后更新rs1、rs2成员变量
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -443,7 +486,6 @@ public:
     }
 };
 
-// U-type指令实现
 class UInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd;
@@ -485,9 +527,7 @@ public:
     }
 
     void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
-        // 首先调用基类方法更新regDef和regUse向量
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -498,7 +538,6 @@ public:
     }
 };
 
-// J-type指令实现
 class JInstruction : public Instruction {
     InstructionTy ty;
     AnyRegister rd;
@@ -519,12 +558,10 @@ public:
     
     std::string output() const override {
         if (ty == InstructionTy::JALR) {
-            // JALR指令格式: jalr rd, offset(rs1)
             return std::string(RiscVTypeName(ty)) + " "
                 + rd->toString() + ", "
                 + label->toString() + "\n";
         } else {
-            // J指令格式: jal rd, offset
             return std::string(RiscVTypeName(ty)) + " "
                 + rd->toString() + ", "
                 + label->toString() + "\n";
@@ -548,7 +585,6 @@ public:
     }
      void replaceVRegsWithPhysRegs(const std::unordered_map<rRegister, pRegister>& vregToPregMap) override {
         Instruction::replaceVRegsWithPhysRegs(vregToPregMap);
-        
         auto tryReplace = [&](AnyRegister& reg) {
             if (auto vreg = std::dynamic_pointer_cast<VirtualRegister>(reg)) {
                 auto it = vregToPregMap.find(vreg);
@@ -559,7 +595,6 @@ public:
     }
 };
 
-// 伪指�?
 class PseudoInstruction : public Instruction {
     InstructionTy ty;
     std::vector<OperandVariant> operands;
@@ -581,6 +616,7 @@ public:
             case InstructionTy::MV:
             case InstructionTy::FMV_S:
             case InstructionTy::LI:
+            case InstructionTy::LA:
             case InstructionTy::SEQZ:
             case InstructionTy::SNEZ:
             case InstructionTy::NOT:
@@ -611,8 +647,6 @@ public:
     }
     bool isCall() const override { return ty == InstructionTy::CALL; }
     bool isReturn() const override { return ty == InstructionTy::RET; }
-    
-
 
     std::string output() const override {
         std::string result = RiscVTypeName(ty);
@@ -648,7 +682,7 @@ public:
                     auto it = vregToPregMap.find(vreg);
                     if (it != vregToPregMap.end()) {
                         reg = it->second;
-                        op = reg; // 更新variant
+                        op = reg;
                     }
                 }
             }
@@ -669,10 +703,10 @@ public:
         if (retReg) {
             reg_def_push_back(retReg);
         }
+        regDef.push_back(PhysicalRegister::get(1));
     }
     
     InstType getInstType() const override { return InstType::Pseudo; }
-    
     bool isCall() const override { return true; }
     
     std::string output() const override {
@@ -714,11 +748,9 @@ public:
     }
 };
 
-
 inline const char* RiscVTypeName(InstructionTy ty) {
     switch(ty) {
         case InstructionTy::NOP: return "nop";
-        // RV32I
         case InstructionTy::LUI: return "lui";
         case InstructionTy::AUIPC: return "auipc";
         case InstructionTy::JAL: return "jal";
@@ -756,7 +788,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SRA: return "sra";
         case InstructionTy::OR: return "or";
         case InstructionTy::AND: return "and";
-        // RV64I
         case InstructionTy::LWU: return "lwu";
         case InstructionTy::LD: return "ld";
         case InstructionTy::SD: return "sd";
@@ -769,7 +800,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SLLW: return "sllw";
         case InstructionTy::SRLW: return "srlw";
         case InstructionTy::SRAW: return "sraw";
-        // RV32M
         case InstructionTy::MUL: return "mul";
         case InstructionTy::MULH: return "mulh";
         case InstructionTy::MULHSU: return "mulhsu";
@@ -778,7 +808,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::DIVU: return "divu";
         case InstructionTy::REM: return "rem";
         case InstructionTy::REMU: return "remu";
-        // RV64M
         case InstructionTy::MULW: return "mulw";
         case InstructionTy::DIVW: return "divw";
         case InstructionTy::DIVUW: return "divuw";
@@ -798,7 +827,6 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::FCVT_W_S: return "fcvt.w.s";
         case InstructionTy::FCVT_S_W: return "fcvt.s.w";
         case InstructionTy::FMV_W_X: return "fmv.w.x";
-        // 伪指�?
         case InstructionTy::CALL: return "call";
         case InstructionTy::RET: return "ret";
         case InstructionTy::J: return "j";
@@ -811,6 +839,7 @@ inline const char* RiscVTypeName(InstructionTy ty) {
         case InstructionTy::SEXT_W: return "sext.w";
         case InstructionTy::ZEXT_W: return "zext.w";
         case InstructionTy::LI: return "li";
+        case InstructionTy::LA: return "lla";
         default: return "unknown";
     }
 }
@@ -820,5 +849,4 @@ inline std::shared_ptr<Instruction> createPseudoInstruction(InstructionTy ty,
     return std::make_shared<PseudoInstruction>(ty, operands);
 }
 
-} // namespace backend
-
+}

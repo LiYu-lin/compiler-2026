@@ -56,8 +56,7 @@ IR::pType Visitor::getFuncParamType(const ast::FuncFParam &node) {
     IR::pType paramType = getTypeFromBType(node.btype);
     if (node.dimensions) {
         std::vector<int> dims;
-        dims.reserve(node.dimensions->size() + 1);
-        dims.push_back(1);
+        dims.reserve(node.dimensions->size());
         for (const auto &dim : *node.dimensions) {
             auto dimValue = dim->accept(*this);
             if (auto constInt = dynamic_cast<IR::ConstantInt32*>(dimValue)) {
@@ -66,7 +65,7 @@ IR::pType Visitor::getFuncParamType(const ast::FuncFParam &node) {
                 dims.push_back(1);
             }
         }
-        paramType = buildArrayType(paramType, dims);
+        paramType = IR::PointerType::getPointerType(buildArrayType(paramType, dims));
     }
     return paramType;
 }
@@ -108,6 +107,119 @@ IR::Value* Visitor::coerceBinaryOperands(IR::Value *&left, IR::Value *&right) {
     return left;
 }
 
+static size_t getScalarElementCount(IR::pType type) {
+    if (!type->isArrayTy()) {
+        return 1;
+    }
+    return static_cast<size_t>(type->getArraySize()) *
+           getScalarElementCount(type->getArrayBase());
+}
+
+static IR::pType chooseInitializerSubType(IR::pType targetType, size_t cursor) {
+    IR::pType selected = targetType;
+    IR::pType current = targetType;
+    while (current->isArrayTy() && current->getArrayBase()->isArrayTy()) {
+        auto child = current->getArrayBase();
+        auto childLeaves = getScalarElementCount(child);
+        if (childLeaves != 0 && cursor % childLeaves == 0) {
+            selected = child;
+        }
+        current = child;
+    }
+    return selected;
+}
+
+IR::Constant* Visitor::buildArrayConstantFromFlat(
+    IR::pType targetType,
+    const std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (!targetType->isArrayTy()) {
+        if (cursor < flat.size() && flat[cursor]) {
+            return flat[cursor++];
+        }
+        ++cursor;
+        return IR::Constant::getZeroValueForType(targetType);
+    }
+
+    auto *array = IR::ConstantArray::get(targetType);
+    auto elemType = targetType->getArrayBase();
+    for (int i = 0; i < targetType->getArraySize(); ++i) {
+        auto before = cursor;
+        auto *init = buildArrayConstantFromFlat(elemType, flat, cursor);
+        if (init && !(init->isConstantInt32() && static_cast<IR::ConstantInt32*>(init)->getValue() == 0)) {
+            array->insertOperand(static_cast<unsigned int>(i), init);
+        } else if (init && init->isConstantFloat() && static_cast<IR::ConstantFloat*>(init)->getValue() != 0.0f) {
+            array->insertOperand(static_cast<unsigned int>(i), init);
+        }
+        if (cursor == before) {
+            ++cursor;
+        }
+    }
+    return array;
+}
+
+void Visitor::flattenConstInitializer(
+    const ast::ConstInitVal &node,
+    IR::pType targetType,
+    std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
+        auto value = std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
+        value = coerceToType(value, targetType->isArrayTy() ? targetType->getBase() : targetType);
+        if (cursor < flat.size()) {
+            flat[cursor++] = dynamic_cast<IR::Constant*>(value);
+        }
+        return;
+    }
+
+    auto values = std::get<ast::ASTNodePtrs>(node.constInitVal);
+    for (auto &value : values) {
+        auto *child = dynamic_cast<ast::ConstInitVal*>(value.get());
+        if (!child || cursor >= flat.size()) {
+            continue;
+        }
+        if (std::holds_alternative<ast::ASTNodePtr>(child->constInitVal)) {
+            flattenConstInitializer(*child, targetType->getBase(), flat, cursor);
+        } else {
+            auto subType = chooseInitializerSubType(targetType, cursor);
+            auto start = cursor;
+            flattenConstInitializer(*child, subType, flat, cursor);
+            cursor = start + getScalarElementCount(subType);
+        }
+    }
+}
+
+void Visitor::flattenInitInitializer(
+    const ast::InitVal &node,
+    IR::pType targetType,
+    std::vector<IR::Constant*> &flat,
+    size_t &cursor) {
+    if (std::holds_alternative<ast::ASTNodePtr>(node.initVal)) {
+        auto value = std::get<ast::ASTNodePtr>(node.initVal)->accept(*this);
+        value = coerceToType(value, targetType->isArrayTy() ? targetType->getBase() : targetType);
+        if (cursor < flat.size()) {
+            flat[cursor++] = dynamic_cast<IR::Constant*>(value);
+        }
+        return;
+    }
+
+    auto values = std::get<ast::ASTNodePtrs>(node.initVal);
+    for (auto &value : values) {
+        auto *child = dynamic_cast<ast::InitVal*>(value.get());
+        if (!child || cursor >= flat.size()) {
+            continue;
+        }
+        if (std::holds_alternative<ast::ASTNodePtr>(child->initVal)) {
+            flattenInitInitializer(*child, targetType->getBase(), flat, cursor);
+        } else {
+            auto subType = chooseInitializerSubType(targetType, cursor);
+            auto start = cursor;
+            flattenInitInitializer(*child, subType, flat, cursor);
+            cursor = start + getScalarElementCount(subType);
+        }
+    }
+}
+
 IR::Constant* Visitor::buildConstInitializer(const ast::ConstInitVal &node, IR::pType targetType) {
     if (std::holds_alternative<ast::ASTNodePtr>(node.constInitVal)) {
         auto value = std::get<ast::ASTNodePtr>(node.constInitVal)->accept(*this);
@@ -119,17 +231,11 @@ IR::Constant* Visitor::buildConstInitializer(const ast::ConstInitVal &node, IR::
         return IR::Constant::getZeroValueForType(targetType);
     }
 
-    auto *array = IR::ConstantArray::get(targetType);
-    auto values = std::get<ast::ASTNodePtrs>(node.constInitVal);
-    auto elemType = targetType->getArrayBase();
-    for (size_t i = 0; i < values.size() && i < static_cast<size_t>(targetType->getArraySize()); ++i) {
-        if (auto *child = dynamic_cast<ast::ConstInitVal*>(values[i].get())) {
-            if (auto *init = buildConstInitializer(*child, elemType)) {
-                array->insertOperand(static_cast<unsigned int>(i), init);
-            }
-        }
-    }
-    return array;
+    std::vector<IR::Constant*> flat(getScalarElementCount(targetType), nullptr);
+    size_t cursor = 0;
+    flattenConstInitializer(node, targetType, flat, cursor);
+    cursor = 0;
+    return buildArrayConstantFromFlat(targetType, flat, cursor);
 }
 
 IR::Constant* Visitor::buildInitInitializer(const ast::InitVal &node, IR::pType targetType) {
@@ -143,17 +249,11 @@ IR::Constant* Visitor::buildInitInitializer(const ast::InitVal &node, IR::pType 
         return IR::Constant::getZeroValueForType(targetType);
     }
 
-    auto *array = IR::ConstantArray::get(targetType);
-    auto values = std::get<ast::ASTNodePtrs>(node.initVal);
-    auto elemType = targetType->getArrayBase();
-    for (size_t i = 0; i < values.size() && i < static_cast<size_t>(targetType->getArraySize()); ++i) {
-        if (auto *child = dynamic_cast<ast::InitVal*>(values[i].get())) {
-            if (auto *init = buildInitInitializer(*child, elemType)) {
-                array->insertOperand(static_cast<unsigned int>(i), init);
-            }
-        }
-    }
-    return array;
+    std::vector<IR::Constant*> flat(getScalarElementCount(targetType), nullptr);
+    size_t cursor = 0;
+    flattenInitInitializer(node, targetType, flat, cursor);
+    cursor = 0;
+    return buildArrayConstantFromFlat(targetType, flat, cursor);
 }
 
 IR::Value* Visitor::getLValPointer(const ast::LVal &node) {
@@ -326,7 +426,7 @@ IR::Value* Visitor::visit(const ast::InitVal& node) {
 
 IR::Value* Visitor::visit(const ast::ConstDef& node) {
     
-    // 检查常量是否已定义
+    // 妫€鏌ュ父閲忔槸鍚﹀凡瀹氫箟
     if (symbolTable.lookup(node.ident)) {
         std::cerr << "Error: Redefinition of constant '" << node.ident << "'" << std::endl;
         return undefinedValue;
@@ -347,7 +447,7 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
 
     IR::Value* constValue = nullptr;
     IR::Constant* scalarConstInit = nullptr;
-    if (!currentFunction) {  // 全局常量处理
+    if (!currentFunction) {  // 鍏ㄥ眬甯搁噺澶勭悊
         IR::Constant* initVal = nullptr;
         if (node.constInitVal) {
             auto *initNode = dynamic_cast<ast::ConstInitVal*>(node.constInitVal.get());
@@ -360,7 +460,7 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
         if (node.dimensions.empty()) {
             scalarConstInit = initVal;
         }
-        constValue = IR::GlobalVariable::create(constType, node.ident, initVal, true); // true表示是常�?
+        constValue = IR::GlobalVariable::create(constType, node.ident, initVal, true); // true琛ㄧず鏄父锟?
         module.addGlobal(static_cast<IR::GlobalVariable*>(constValue));
 
     } else {  
@@ -375,7 +475,7 @@ IR::Value* Visitor::visit(const ast::ConstDef& node) {
         }
     }
 
-    // 设置符号表信�?
+    // 璁剧疆绗﹀彿琛ㄤ俊锟?
     SymbolInfo info(node.ident, currentBType, true, symbolTable.getCurrentScopeLevel());
     info.isArray = !node.dimensions.empty();
     info.dims = dimValues;
@@ -438,7 +538,7 @@ IR::Value* Visitor::visit(const ast::VarDef &node) {
         varType = buildArrayType(varType, dimValues);
     }
     
-    // 区分全局变量和局部变�?
+    // 鍖哄垎鍏ㄥ眬鍙橀噺鍜屽眬閮ㄥ彉閲?
     IR::Value* varValue = nullptr;
     if (currentFunction) {
         varValue = builder.CreateAlloca(varType, node.ident);
@@ -455,7 +555,7 @@ IR::Value* Visitor::visit(const ast::VarDef &node) {
             builder.CreateStore(initVal, varValue);
         }
     } else {
-        // 全局变量处理
+        // 鍏ㄥ眬鍙橀噺澶勭悊
         IR::Constant* initVal = nullptr;
         if (node.initVal && *node.initVal) {
             if (auto *initNode = dynamic_cast<ast::InitVal*>((*node.initVal).get())) {
@@ -476,7 +576,7 @@ IR::Value* Visitor::visit(const ast::VarDef &node) {
         module.addGlobal(static_cast<IR::GlobalVariable*>(varValue));
     }
 
-    // 符号表记�?
+    // 绗﹀彿琛ㄨ褰?
     SymbolInfo info(
         node.ident,
         currentBType,
@@ -527,6 +627,13 @@ IR::Value* Visitor::visit(const ast::FuncDef &node) {
     }
     
     node.block->accept(*this);
+    if (!currentBlockHasTerminator()) {
+        if (retType->isVoidTy()) {
+            builder.CreateRetVoid(currentFunction);
+        } else {
+            builder.CreateRet(IR::Constant::getZeroValueForType(retType), currentFunction);
+        }
+    }
     
     currentFunction = nullptr;
     symbolTable.exitScope();
@@ -549,17 +656,21 @@ IR::Value* Visitor::visit(const ast::FuncFParam& node) {
     }
 
     auto *argValue = currentFunction->getArg(static_cast<unsigned int>(currentParamIndex++));
-    auto *alloca = builder.CreateAlloca(paramType, node.ident);
-    builder.CreateStore(argValue, alloca);
+    IR::Value *paramValue = argValue;
+    if (!node.dimensions) {
+        auto *alloca = builder.CreateAlloca(paramType, node.ident);
+        builder.CreateStore(argValue, alloca);
+        paramValue = alloca;
+    }
 
     SymbolInfo info(node.ident, node.btype, false, symbolTable.getCurrentScopeLevel());
     info.isArray = node.dimensions.has_value();
-    info.value = alloca;
+    info.value = paramValue;
     if (!symbolTable.insert(node.ident, info)) {
         std::cerr << "Error: Redefinition of parameter '" << node.ident << "'" << std::endl;
     }
 
-    return alloca;
+    return paramValue;
 }
 
 IR::Value* Visitor::visit(const ast::Block &node) {
@@ -646,14 +757,14 @@ IR::Value* Visitor::visit(const ast::Stmt::IfStmt &node) {
 
     emitConditionalBranch(*node.exp, trueBB, falseBB);
     
-    // 处理true分支
+    // 澶勭悊true鍒嗘敮
     builder.SetInsertPoint(trueBB);
     node.block->accept(*this);
     if (!currentBlockHasTerminator()) {
         builder.CreateBr(mergeBB);  
     }
     
-    // 处理false分支
+    // 澶勭悊false鍒嗘敮
     if (node.elseStmt) {
         builder.SetInsertPoint(falseBB);
         (*node.elseStmt)->accept(*this);
@@ -721,9 +832,9 @@ IR::Value* Visitor::visit(const ast::LVal &node) {
         return undefinedValue;
     }
     
-    // 如果是常量，优先尝试直接返回常量值�?
-    // 但是全局 const 存储�?GlobalVariable（也�?Constant 的子类）�?
-    // 不能直接返回地址常量，否则后续会把地址�?int/float 用�?
+    // 濡傛灉鏄父閲忥紝浼樺厛灏濊瘯鐩存帴杩斿洖甯搁噺鍊笺€?
+    // 浣嗘槸鍏ㄥ眬 const 瀛樺偍涓?GlobalVariable锛堜篃鏄?Constant 鐨勫瓙绫伙級锛?
+    // 涓嶈兘鐩存帴杩斿洖鍦板潃甯搁噺锛屽惁鍒欏悗缁細鎶婂湴鍧€褰?int/float 鐢ㄣ€?
     if (symbol->isConst) {
         if (auto constant = dynamic_cast<IR::Constant*>(symbol->value)) {
             if (!symbol->value->isGlobalVariable()) {
@@ -736,7 +847,7 @@ IR::Value* Visitor::visit(const ast::LVal &node) {
         return getLValPointer(node);
     }
     
-    // 否则正常处理变量加载
+    // 鍚﹀垯姝ｅ父澶勭悊鍙橀噺鍔犺浇
     auto varPtr = getLValPointer(node);
     IR::pType varType = getTypeFromBType(symbol->baseType);
     return builder.CreateLoad(varType, varPtr);
@@ -786,7 +897,7 @@ IR::Value* Visitor::visit(const ast::UnaryExp::UnaryExpOp &node) {
         case ast::ASTNode::UnaryOp::Minus: 
             return val->getType()->isFloatTy() ? builder.CreateFNeg(val) : builder.CreateNeg(val);
         case ast::ASTNode::UnaryOp::Not:
-            return builder.CreateNot(coerceToBoolValue(val));
+            return builder.CreateEq(coerceToBoolValue(val), IR::ConstantInt32::get(0));
     }
     return undefinedValue;
 }
@@ -918,9 +1029,33 @@ IR::Value* Visitor::visit(const ast::LAndExp &node) {
 }
 
 IR::Value* Visitor::visit(const ast::LAndExp::LAndExpOp& node) {
-    auto left = coerceToBoolValue(node.lAndExp->accept(*this));
+    if (!currentFunction) {
+        auto left = coerceToBoolValue(node.lAndExp->accept(*this));
+        auto right = coerceToBoolValue(node.eqExp->accept(*this));
+        return builder.CreateAnd(left, right);
+    }
+
+    auto resultSlot = builder.CreateAlloca(IR::Type::getI32Type(), "land.tmp");
+    auto rhsBB = new IR::BasicBlock("land.expr.rhs");
+    auto falseBB = new IR::BasicBlock("land.expr.false");
+    auto mergeBB = new IR::BasicBlock("land.expr.merge");
+    currentFunction->addBlock(rhsBB);
+    currentFunction->addBlock(falseBB);
+    currentFunction->addBlock(mergeBB);
+
+    emitConditionalBranch(*node.lAndExp, rhsBB, falseBB);
+
+    builder.SetInsertPoint(rhsBB);
     auto right = coerceToBoolValue(node.eqExp->accept(*this));
-    return builder.CreateAnd(left, right);
+    builder.CreateStore(right, resultSlot);
+    builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(falseBB);
+    builder.CreateStore(IR::ConstantInt32::get(0), resultSlot);
+    builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(mergeBB);
+    return builder.CreateLoad(IR::Type::getI32Type(), resultSlot);
 }
 
 IR::Value* Visitor::visit(const ast::LOrExp &node) {
@@ -928,9 +1063,33 @@ IR::Value* Visitor::visit(const ast::LOrExp &node) {
 }
 
 IR::Value* Visitor::visit(const ast::LOrExp::LOrExpOp& node) {
-    auto left = coerceToBoolValue(node.lOrExp->accept(*this));
+    if (!currentFunction) {
+        auto left = coerceToBoolValue(node.lOrExp->accept(*this));
+        auto right = coerceToBoolValue(node.lAndExp->accept(*this));
+        return builder.CreateOr(left, right);
+    }
+
+    auto resultSlot = builder.CreateAlloca(IR::Type::getI32Type(), "lor.tmp");
+    auto trueBB = new IR::BasicBlock("lor.expr.true");
+    auto rhsBB = new IR::BasicBlock("lor.expr.rhs");
+    auto mergeBB = new IR::BasicBlock("lor.expr.merge");
+    currentFunction->addBlock(trueBB);
+    currentFunction->addBlock(rhsBB);
+    currentFunction->addBlock(mergeBB);
+
+    emitConditionalBranch(*node.lOrExp, trueBB, rhsBB);
+
+    builder.SetInsertPoint(trueBB);
+    builder.CreateStore(IR::ConstantInt32::get(1), resultSlot);
+    builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(rhsBB);
     auto right = coerceToBoolValue(node.lAndExp->accept(*this));
-    return builder.CreateOr(left, right);
+    builder.CreateStore(right, resultSlot);
+    builder.CreateBr(mergeBB);
+
+    builder.SetInsertPoint(mergeBB);
+    return builder.CreateLoad(IR::Type::getI32Type(), resultSlot);
 }
 
 IR::Value* Visitor::visit(const ast::ConstExp& node) {
@@ -942,6 +1101,7 @@ IR::Value* Visitor::visit(const ast::Cond& node) {
 }
 
 } // namespace frontend::visitor
+
 
 
 

@@ -27,17 +27,34 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
-IR::Module* buildModuleFromSource(const std::string& code) {
-    auto parser = frontend::parser::comp_unit();
+frontend::TokenPtrs lexSource(const std::string& code) {
     auto stream = std::stringstream(code);
     auto lexer = frontend::Lexer(stream);
 
-    std::vector<frontend::TokenPtr> tokens;
+    frontend::TokenPtrs tokens;
     while (auto token = lexer.nextToken()) {
         tokens.push_back(token);
     }
+    return tokens;
+}
 
-    auto ast = parser.run(frontend::TokenPtrIterator(tokens.begin(), tokens.end()));
+std::string dumpTokensToString(const frontend::TokenPtrs& tokens) {
+    std::ostringstream out;
+    for (size_t i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        out << i << "\t"
+            << token->line << ":" << token->column << "\t"
+            << token->toString() << "\n";
+    }
+    return out.str();
+}
+
+frontend::ast::ASTNodePtr parseTokens(frontend::TokenPtrs& tokens) {
+    auto parser = frontend::parser::comp_unit();
+    return parser.run(frontend::TokenPtrIterator(tokens.begin(), tokens.end()));
+}
+
+IR::Module* buildModuleFromAST(const frontend::ast::ASTNodePtr& ast) {
     auto* module = new IR::Module("sysy_module");
     frontend::visitor::Visitor visitor(*module);
     visitor.visit(*ast);
@@ -62,7 +79,7 @@ void printUsage(const char* argv0) {
         << "Usage: " << argv0
         << " <input.sysy|input.sy> -S -o <output-file> [-O1]\n"
         << "       " << argv0
-        << " [--emit-ir|--emit-asm] <input.sysy|input.sy> [-o <output-file>]\n";
+        << " [--dump-tokens|--dump-ast|--emit-raw-ir|--emit-ir|--emit-asm] <input.sysy|input.sy> [-o <output-file>]\n";
 }
 
 }
@@ -71,6 +88,9 @@ int main(int argc, char** argv) {
     try {
         bool emitIR = false;
         bool emitAsm = true;
+        bool emitRawIR = false;
+        bool dumpTokens = false;
+        bool dumpAST = false;
         std::string inputPath;
         std::string outputPath;
 
@@ -79,9 +99,33 @@ int main(int argc, char** argv) {
             if (arg == "--emit-ir") {
                 emitIR = true;
                 emitAsm = false;
+                emitRawIR = false;
+                dumpTokens = false;
+                dumpAST = false;
             } else if (arg == "--emit-asm" || arg == "-S") {
                 emitAsm = true;
                 emitIR = false;
+                emitRawIR = false;
+                dumpTokens = false;
+                dumpAST = false;
+            } else if (arg == "--emit-raw-ir") {
+                emitRawIR = true;
+                emitAsm = false;
+                emitIR = false;
+                dumpTokens = false;
+                dumpAST = false;
+            } else if (arg == "--dump-tokens") {
+                dumpTokens = true;
+                emitAsm = false;
+                emitIR = false;
+                emitRawIR = false;
+                dumpAST = false;
+            } else if (arg == "--dump-ast") {
+                dumpAST = true;
+                emitAsm = false;
+                emitIR = false;
+                emitRawIR = false;
+                dumpTokens = false;
             } else if (arg == "-O0" || arg == "-O1" || arg == "-O2") {
                 // Competition compatibility: optimization levels are accepted
                 // here and mapped onto the currently available pass pipeline.
@@ -108,7 +152,28 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        std::unique_ptr<IR::Module> module(buildModuleFromSource(readFile(inputPath)));
+        auto source = readFile(inputPath);
+        auto tokens = lexSource(source);
+
+        if (dumpTokens) {
+            writeOutput(outputPath, dumpTokensToString(tokens));
+            return 0;
+        }
+
+        auto ast = parseTokens(tokens);
+
+        if (dumpAST) {
+            writeOutput(outputPath, ast->toString(0) + "\n");
+            return 0;
+        }
+
+        std::unique_ptr<IR::Module> module(buildModuleFromAST(ast));
+        if (emitRawIR) {
+            std::ostringstream ir;
+            module->gen(ir);
+            writeOutput(outputPath, ir.str());
+            return 0;
+        }
         IR::PassManager passManager(*module);
         passManager.addPass<IR::SimplifyCFG>();
         passManager.addPass<IR::InstCombine>();
@@ -133,7 +198,19 @@ int main(int argc, char** argv) {
         }
 
         throw std::runtime_error("No emission mode selected");
-    } catch (const std::exception& e) {
+    } catch (const frontend::ParserError& e) {
+        std::cerr << "\n========================================\n";
+        std::cerr << "🎯 [CRITICAL PARSER ERROR FOUND]:\n";
+        std::cerr << e.message << '\n';
+        if (e.state.get() != nullptr) {
+            std::cerr << "📍 Location: Line " << e.state->line 
+                      << ", Column " << e.state->column << '\n';
+            std::cerr << "🔍 Failed Token String: " << e.state->toString() << '\n';
+        }
+        std::cerr << "========================================\n\n";
+        return 1;
+    } 
+    catch (const std::exception& e) {
         std::cerr << "compiler error: " << e.what() << '\n';
         return 1;
     }

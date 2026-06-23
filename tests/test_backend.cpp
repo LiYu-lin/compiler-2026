@@ -133,8 +133,8 @@ bool testFunctionCallLowering() {
         if (asmOutput.find("\tcall add\n") == std::string::npos) {
             throw std::runtime_error("Missing lowered function call");
         }
-        if (asmOutput.find("sw ra, 0(sp)") == std::string::npos ||
-            asmOutput.find("lw ra, 0(sp)") == std::string::npos) {
+        if (asmOutput.find("sd ra, 0(sp)") == std::string::npos ||
+            asmOutput.find("ld ra, 0(sp)") == std::string::npos) {
             throw std::runtime_error("Caller/callee return address handling was not emitted");
         }
         if (asmOutput.find("sw a1, 0(a1)") != std::string::npos) {

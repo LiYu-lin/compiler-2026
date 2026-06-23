@@ -60,12 +60,12 @@ def setup_path():
         os.environ["PATH"] = os.pathsep.join(prefixes + [existing])
 
 
-def run_command(command, timeout=None, input_bytes=None):
+def run_command(command, timeout=None, input_bytes=None, merge_stderr=True):
     return proc.run(
         command,
         input=input_bytes,
         stdout=proc.PIPE,
-        stderr=proc.STDOUT,
+        stderr=proc.STDOUT if merge_stderr else proc.PIPE,
         timeout=timeout,
         shell=False,
     )
@@ -138,7 +138,12 @@ def run_exe(args, exe_path, in_path):
     input_bytes = None
     if in_path and in_path.exists():
         input_bytes = in_path.read_bytes()
-    return run_command([args.qemu, str(exe_path)], timeout=args.timeout, input_bytes=input_bytes)
+    return run_command(
+        [args.qemu, str(exe_path)],
+        timeout=args.timeout,
+        input_bytes=input_bytes,
+        merge_stderr=False,
+    )
 
 
 def test_case(args, sy_path, in_path, out_path):
