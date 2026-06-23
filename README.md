@@ -1,19 +1,19 @@
 # Compiler Competition 2026
 
-这是一个面向 SysY 子集的 C++17 编译器项目。当前主流程可以把 `.sy` 源程序解析为 AST，生成项目自定义 IR，运行基础优化 pass，并输出 RV64 RISC-V 汇编。
+这是一个面向 SysY 子集的 C++17 编译器项目。当前主流程可以把 `.sy` 源程序解析为 AST，生成项目自定义 IR，根据参数运行中端优化 pass，并输出 RV64 RISC-V 汇编。
 
 ## 项目状态
 
-- 构建系统：CMake
-- 语言标准：C++17
-- 前端：手写 Lexer、Parser Combinator、SysY Grammar 和 AST
-- 中端：自定义 IR、IRBuilder、PassManager
-- 后端：RV64 RISC-V 汇编生成、栈帧布局、调用约定处理、活跃变量分析、冲突图染色寄存器分配、基础 spill 重写
-- 测评入口：生成名为 `compiler` 的可执行文件，兼容 `compiler testcase.sy -S -o testcase.s [-O1]`
+- **构建系统**：CMake
+- **语言标准**：C++17
+- **前端**：手写 Lexer、Parser Combinator、SysY Grammar 和 AST
+- **中端**：自定义 IR、IRBuilder、PassManager（支持整体不动点安全迭代）
+- **后端**：RV64 RISC-V 汇编生成、栈帧布局、调用约定处理、活跃变量分析、冲突图染色寄存器分配（支持 Spill 多轮循环着色图迭代）、基础 spill重写
+- **测评入口**：生成名为 `compiler` 的可执行文件，兼容 `compiler testcase.sy -S -o testcase.s [-O1]`
 
-当前已接入的优化 pass：
+当前已接入的优化 pass（默认在 `-O0` 下关闭，`-O1`/`-O2` 激活）：
 
-- `SimplifyCFG`
+- `SimplifyCFG`（常数分支折叠与不可达块消除）
 - `InstCombine`
 - `MemoryOpt`
 - `DCE`
@@ -27,6 +27,70 @@
 - 多于 8 个参数时的栈上传参与读取
 - 大栈帧使用 `li` + `sub/add sp`，避免超出 `addi` 12-bit 立即数范围
 - `int` 算术运算使用 RV64 word 指令，如 `addw/subw/mulw/divw/remw`
+- 指针与 64 位全字长变量 Spill 时严格配对 `ld/sd` 指令，防止大地址空间下高 32 位被截断
+
+## 目录结构
+
+```text
+.
+├── cmake/                  # CMake 辅助函数
+├── fixtures/               # 简单输入样例和部分汇编样例
+├── include/
+│   ├── Parse/              # Lexer、Parser、Grammar、AST 接口
+│   ├── GenIR/              # AST 到 IR 的 Visitor 接口
+│   ├── ir/                 # IR 类型、Value、Instruction、Module、Pass 接口
+│   ├── backend/            # RISC-V 后端接口
+│   └── utils/              # 通用工具
+├── lib/
+│   ├── Parse/              # 词法、语法、AST 实现
+│   ├── IR/                 # IR、IRBuilder、Pass、IR 生成实现
+│   ├── backend/            # RISC-V 汇编生成与寄存器分配实现
+│   └── utils/              # 工具实现
+├── test/custom/            # 本地 SysY 样例
+├── tests/                  # CTest 测试程序
+├── tools/                  # 编译器入口和测试脚本
+└── CMakeLists.txt
+
+构建
+在项目根目录执行（默认编译为安全无优化的编译器版本）：
+
+PowerShell
+cmake -S . -B build
+cmake --build build
+启用项目级优化开关（编译得到采用 -O2 性能加速的编译器本身）：
+
+PowerShell
+# 在配置阶段启用优化（将添加编译器优化标志并定义宏 ENABLE_OPTIMIZATION）
+# Compiler Competition 2026
+
+这是一个面向 SysY 子集的 C++17 编译器项目。当前主流程可以把 `.sy` 源程序解析为 AST，生成项目自定义 IR，根据参数运行中端优化 pass，并输出 RV64 RISC-V 汇编。
+
+## 项目状态
+
+- **构建系统**：CMake
+- **语言标准**：C++17
+- **前端**：手写 Lexer、Parser Combinator、SysY Grammar 和 AST
+- **中端**：自定义 IR、IRBuilder、PassManager（支持整体不动点安全迭代）
+- **后端**：RV64 RISC-V 汇编生成、栈帧布局、调用约定处理、活跃变量分析、冲突图染色寄存器分配（支持 Spill 多轮循环着色图迭代）、基础 spill重写
+- **测评入口**：生成名为 `compiler` 的可执行文件，兼容 `compiler testcase.sy -S -o testcase.s [-O1]`
+
+当前已接入的优化 pass（默认在 `-O0` 下关闭，`-O1`/`-O2` 激活）：
+
+- `SimplifyCFG`（常数分支折叠与不可达块消除）
+- `InstCombine`
+- `MemoryOpt`
+- `DCE`
+
+当前后端已重点处理：
+
+- `/` 词法识别和注释识别共存
+- RV64 下 `ra` 使用 `sd/ld` 保存恢复
+- 函数调用前后保存 caller-saved 整数临时寄存器
+- 函数调用前后保存 caller-saved 浮点临时寄存器
+- 多于 8 个参数时的栈上传参与读取
+- 大栈帧使用 `li` + `sub/add sp`，避免超出 `addi` 12-bit 立即数范围
+- `int` 算术运算使用 RV64 word 指令，如 `addw/subw/mulw/divw/remw`
+- 指针与 64 位全字长变量 Spill 时严格配对 `ld/sd` 指令，防止大地址空间下高 32 位被截断
 
 ## 目录结构
 
@@ -53,42 +117,45 @@
 
 ## 构建
 
-在项目根目录执行：
+在项目根目录执行（默认编译为安全无优化的编译器版本）：
 
 ```powershell
 cmake -S . -B build
 cmake --build build
 ```
 
+启用项目级优化开关（编译得到采用 -O2 性能加速的编译器本身）：
+
+```powershell
+# 在配置阶段启用优化（将添加编译器优化标志并定义宏 ENABLE_OPTIMIZATION）
+cmake -S . -B build -DENABLE_OPTIMIZATION=ON
+cmake --build build
+```
+
 Windows/MinGW 单配置生成器通常会生成：
 
-```text
+```
 build/compiler.exe
+build/sysy_compiler.exe
 ```
 
-Visual Studio 等多配置生成器可能生成在：
-
-```text
-build/Debug/compiler.exe
-```
-
-如果直接运行 `compiler.exe` 没有输出或异常退出，请确认 MinGW 运行库目录已经加入 `PATH`。本地脚本会尝试自动添加仓库中配置过的 MinGW 路径。
+如果直接运行 compiler.exe 没有输出或异常退出，请确认 MinGW 运行库目录已经加入 PATH。
 
 ## 使用方式
 
-输出 RISC-V 汇编：
+默认无优化编译（-O0 模式，中端流水线完全放行，最安全稳定）：
 
 ```powershell
 .\build\compiler.exe test\custom\reduction.sy -S -o test\custom\out\reduction.s
 ```
 
-测评兼容的优化参数：
+带中端优化管线编译（-O1 或 -O2 模式，激活常数分支折叠、死代码消除等）：
 
 ```powershell
 .\build\compiler.exe testcase.sy -S -o testcase.s -O1
 ```
 
-如果省略 `-o`，结果会输出到标准输出。
+如果省略 -o，结果会输出到标准输出。
 
 ## 调试输出
 
@@ -104,11 +171,9 @@ build/Debug/compiler.exe
 
 建议排查顺序：
 
-```text
+```
 tokens -> AST -> raw IR -> optimized IR -> ASM
 ```
-
-例如，遇到除法问题时先看 token 中是否有 `Operator(/)`；遇到后端问题时再看 `.s` 中是否生成 `divw`、栈帧恢复是否和函数入口匹配。
 
 ## 批量测试
 
@@ -118,36 +183,17 @@ tokens -> AST -> raw IR -> optimized IR -> ASM
 ctest --test-dir build --output-on-failure
 ```
 
-批量生成 `test/custom` 下所有样例的 IR 和汇编：
+使用本地 Python 批处理脚本进行编译质量扫描：
 
 ```powershell
-.\tools\test_all_sysy.ps1 -Build
+python .\tools\run_sysy_tests.py -v
 ```
 
-该脚本会检查生成结果中是否出现明显坏汇编模式，如：
-
-- `unknown`
-- 未替换的虚拟寄存器
-- `sp_ref`
-- 可疑浮点立即数加载
-
-如果本地具备 RISC-V 工具链和运行库，可以使用 Python 脚本尝试链接运行：
-
-```powershell
-python .\tools\run_sysy_tests.py -t test/custom/reduction.sy --build
-```
-
-该运行方式需要：
-
-- `riscv64-linux-gnu-gcc`
-- `qemu-riscv64-static`
-- `test/official/sylib.c`
-
-缺少这些文件或工具时，脚本会退化为 compile-only。
+该脚本会批量并发编译 test/custom 下的所有用例，并自动检查生成结果中是否出现明显的坏汇编模式（如未替换的虚拟寄存器、可疑浮点加载等）。如果系统环境具备 riscv64-linux-gnu-gcc 与 qemu-riscv64-static，脚本会自动推进至链接和仿真差分测评状态。
 
 ## 编译流程
 
-主流程位于 `tools/sysy_compiler.cpp`：
+主流程位于 tools/sysy_compiler.cpp：
 
 ```text
 SysY source
@@ -156,69 +202,51 @@ SysY source
   -> AST
   -> GenIR Visitor
   -> IR Module
-  -> PassManager
-  -> RISC-V backend
+  -> PassManager (Controlled by -O0/-O1)
+  -> RISC-V backend (RegAlloc Loops)
 ```
 
-### 前端
+## 前端
 
-前端代码集中在 `include/Parse` 和 `lib/Parse`：
+前端代码集中在 include/Parse 和 lib/Parse：
 
-- `Lexer` 负责识别标识符、整数、浮点数、运算符、分隔符和注释
-- `Parser.h` 实现轻量 parser combinator
-- `Grammar.cpp` 描述 SysY 语法规则并构造 AST
-- `AST.h` 定义 AST 节点类型和 Visitor 接口
+Lexer 负责识别标识符、整数、浮点数、运算符、分隔符和注释，完美支持 / 词法识别与注释拦截共存。
 
-表达式优先级按以下层次实现：
+Parser.h 实现轻量 parser combinator 拓扑。
 
-```text
-primary_exp
-unary_exp
-mul_exp
-add_exp
-rel_exp
-eq_exp
-l_and_exp
-l_or_exp
-```
+Grammar.cpp 描述 SysY 语法规则并构造 AST，修正了复杂条件与算术表达式的优先级规约链。
 
-### IR 和优化
+AST.h 定义 AST 节点类型和 Visitor 接口。
 
-IR 相关代码集中在 `include/ir` 和 `lib/IR`：
+## IR 和优化
 
-- `Value / User / Use` 表示值和使用关系
-- `Instruction` 定义二元运算、比较、内存访问、分支、返回、调用、Phi 等 IR 指令
-- `BasicBlock / Function / Module` 组成 CFG 和模块结构
-- `Pass / PassManager` 提供优化 pass 流水线
+IR 相关代码集中在 include/ir 和 lib/IR：
 
-当前优化能力包括：
+Value / User / Use 表示值和使用关系。
 
-- 删除不可达块
-- 简化恒定条件分支
-- 常量表达式折叠
-- 局部代数恒等式化简
-- 基本块内 load forwarding
-- 重复 store 删除
-- 死代码删除
+Instruction 定义二元运算、比较、内存访问、分支、返回、调用、Phi 等 IR 指令。
 
-### 后端
+Pass / PassManager 提供中端优化流水线，总控层引入了全局不动点迭代安全上限（最高 10 轮），防止 Pass 间交替震荡导致编译卡死。
 
-后端代码集中在 `include/backend` 和 `lib/backend`：
+## 后端
 
-- `AsmModule` 管理汇编模块输出
-- `AsmFunction` 管理函数级汇编生成、栈帧、活跃变量分析、冲突图和寄存器分配
-- `AsmBasicBlock` 将 IR 指令转换为 RISC-V 指令
-- `Instructions.h` 定义 RISC-V 指令建模和输出
-- `RiscVOperand` 定义寄存器、立即数、标签、地址等操作数
+后端代码集中在 include/backend 和 lib/backend：
 
-当前目标是生成 RV64 RISC-V 汇编。SysY `int` 按 32 位语义处理，因此整数算术使用 word 指令；地址计算和栈指针操作仍使用 64 位寄存器语义。
+AsmModule 管理汇编模块输出，全局变量寻址全面对齐 -mcmodel=medany 大地址空间 lla 伪指令规范。
+
+AsmFunction 管理函数级汇编生成、栈帧布局、调用约定处理、活跃变量分析与寄存器分配。
+
+Instructions.h 严格遵循 RISC-V 调用约定（Calling Convention），在 Call 算子中加入 ra 活跃度污染保护。
+
+寄存器分配器采用 Spill 多轮循环着色图迭代算法，当发生内存溢出时，系统为其分配短寿命的全新临时虚拟寄存器并重新启动活跃性分析构图，同时硬编码了最高 50 轮的安全迭代上限，结合末端的 fallbackMap 降级策略，彻底杜绝了密集计算大用例下的图着色死循环。
 
 ## 已知限制
 
-- 当前本地脚本主要验证能否生成 IR/ASM 以及基础汇编格式，是否能运行取决于本机是否具备 RISC-V GCC、QEMU 和 SysY 运行库
-- 寄存器分配和 caller-saved 保存策略偏保守，仍有优化空间
-- 完整 ABI、复杂浮点场景、数组和指针场景仍建议继续扩展官方样例覆盖
-- 尚未实现完整 `Mem2Reg`、`LowerPhi`、全局值编号等更强优化
+当前本地脚本主要验证能否生成 IR/ASM 以及基础汇编格式，是否能运行取决于本机是否具备 RISC-V 仿真环境。
+
+寄存器分配和 caller-saved 保存策略偏保守，仍有优化空间。
+
+尚未实现完整的 Mem2Reg、LowerPhi、全局值编号等更强优化。
 
 ## 开发建议
 
@@ -226,15 +254,15 @@ IR 相关代码集中在 `include/ir` 和 `lib/IR`：
 
 ```powershell
 cmake --build build
-.\tools\test_all_sysy.ps1 -Build
+python .\tools\run_sysy_tests.py -v
 ```
 
 对后端改动，建议额外检查：
 
-- 函数入口 `sp` 减少量和返回前恢复量一致
-- `sd/ld` 的 `sp` 偏移为 8 字节对齐
-- `addi/lw/sw/flw/fsw/ld/sd` 立即数不超过 12-bit 范围
-- call 前后需要保留的 caller-saved 整数/浮点临时寄存器已保存恢复
+- 函数入口 sp 减少量和返回前恢复量一致，且满足 16 字节对齐。
+- sd/ld 的 sp 偏移为 8 字节对齐。
+- addi/lw/sw/flw/fsw/ld/sd 立即数不超过 12-bit 范围。
+- 条件跳转（如 bne/beq）下方强制追加 j 伪指令锁死终点，防止后端 CFG 物理块重排后发生落空（Fall-through）逻辑错误。
 
 ## 合规说明
 

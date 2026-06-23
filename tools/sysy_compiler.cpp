@@ -91,6 +91,7 @@ int main(int argc, char** argv) {
         bool emitRawIR = false;
         bool dumpTokens = false;
         bool dumpAST = false;
+        bool runOptimization = false; 
         std::string inputPath;
         std::string outputPath;
 
@@ -126,9 +127,11 @@ int main(int argc, char** argv) {
                 emitIR = false;
                 emitRawIR = false;
                 dumpTokens = false;
-            } else if (arg == "-O0" || arg == "-O1" || arg == "-O2") {
-                // Competition compatibility: optimization levels are accepted
-                // here and mapped onto the currently available pass pipeline.
+            } else if (arg == "-O0") {
+                runOptimization = false;
+                continue;
+            } else if (arg == "-O1" || arg == "-O2") {
+                runOptimization = true;
                 continue;
             } else if (arg == "-o" || arg == "--output") {
                 if (i + 1 >= argc) {
@@ -174,15 +177,18 @@ int main(int argc, char** argv) {
             writeOutput(outputPath, ir.str());
             return 0;
         }
-        IR::PassManager passManager(*module);
-        passManager.addPass<IR::SimplifyCFG>();
-        passManager.addPass<IR::InstCombine>();
-        passManager.addPass<IR::MemoryOpt>();
-        passManager.addPass<IR::DCE>();
-        passManager.addPass<IR::SimplifyCFG>();
-        passManager.addPass<IR::MemoryOpt>();
-        passManager.addPass<IR::DCE>();
-        passManager.run();
+
+        if (runOptimization) {
+            IR::PassManager passManager(*module);
+            passManager.addPass<IR::SimplifyCFG>();
+            passManager.addPass<IR::InstCombine>();
+            passManager.addPass<IR::MemoryOpt>();
+            passManager.addPass<IR::DCE>();
+            passManager.addPass<IR::SimplifyCFG>();
+            passManager.addPass<IR::MemoryOpt>();
+            passManager.addPass<IR::DCE>();
+            passManager.run();
+        }
 
         if (emitIR) {
             std::ostringstream ir;
